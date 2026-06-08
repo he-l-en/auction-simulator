@@ -147,8 +147,8 @@ def run_auction(bids_dict, values, budget=None):
             # 宽松模式下：标记超支但保留收益
 
         results[g] = {
-            'items': [j + 1 for j in won_items],  # 1-based indexing
-            'num': num_won,
+            'items': [int(j) + 1 for j in won_items],  # 1-based indexing, 修复numpy int64显示
+            'num': int(num_won),
             'spent': spent,
             'value': total_value,
             'profit': profit,
