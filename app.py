@@ -10,7 +10,7 @@ st.markdown("""
 <div style='background-color:#e8f5e9; padding:15px; border-radius:8px; border-left:6px solid #4CAF50; margin-bottom:20px;'>
 <b>🤖 AI辅助说明</b><br>
 本模拟器由AI辅助设计开发，包含：AI策略生成（0-1背包优化）、数据可视化优化、行为偏差识别、理论辅助理解等环节。<br>
-<small>中南财经政法大学 | 经济管理前沿方法 | 实验3</small>
+<small>中南财经政法大学 | 经济管理前沿方法 | 实验2</small>
 </div>
 """, unsafe_allow_html=True)
 
@@ -667,4 +667,4 @@ st.dataframe(df_total, hide_index=True, use_container_width=True)
 
 st.bar_chart(df_total.set_index('小组')[['总计']])
 
-st.caption("📝 数据来源：实验3统计表 | AI辅助分析：策略识别、数据可视化、理论理解")
+st.caption("📝 数据来源：实验2统计表 | AI辅助分析：策略识别、数据可视化、理论理解")
