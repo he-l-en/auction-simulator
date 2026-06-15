@@ -62,12 +62,11 @@ st.set_page_config(page_title="拍卖实验模拟器", layout="wide")
 st.title("🎯 一级密封价格拍卖实验模拟器")
 st.markdown("*中南财经政法大学 | 经济管理前沿方法 | 实验2*")
 
-# 显示字体加载状态（调试用，部署稳定后可删除或注释掉）
-if font_used:
-    st.sidebar.success(f"✅ 字体已加载: {font_used}")
-else:
-    st.sidebar.error("⚠️ 未找到中文字体！图表中文将显示为方块")
-    st.sidebar.info("解决方案：在项目目录添加 fonts/NotoSansCJKsc-Regular.otf")
+# 字体加载状态（如需调试可取消注释）
+# if font_used:
+#     st.sidebar.success(f"✅ 字体已加载: {font_used}")
+# else:
+#     st.sidebar.error("⚠️ 未找到中文字体！图表中文将显示为方块")
 
 # ========== 完整实验数据 ==========
 # ========== 完整实验数据 ==========
