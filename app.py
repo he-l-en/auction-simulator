@@ -2,21 +2,76 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib import font_manager
+import os
+
+# ========== 中文字体配置（必须在所有绘图之前）==========
+def setup_chinese_font():
+    """配置中文字体，支持本地和云端部署"""
+    # 1. 先尝试加载项目目录下的字体文件（最可靠）
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    font_candidates = [
+        os.path.join(base_dir, 'NotoSansCJKsc-Regular.otf'),
+        os.path.join(base_dir, 'fonts', 'NotoSansCJKsc-Regular.otf'),
+        os.path.join(base_dir, 'fonts', 'SimHei.ttf'),
+        os.path.join(base_dir, 'SimHei.ttf'),
+    ]
+
+    for font_path in font_candidates:
+        if os.path.exists(font_path):
+            font_manager.fontManager.addfont(font_path)
+            prop = font_manager.FontProperties(fname=font_path)
+            plt.rcParams['font.family'] = prop.get_name()
+            plt.rcParams['axes.unicode_minus'] = False
+            return prop.get_name()
+
+    # 2. 回退：查找系统已安装的中文字体
+    chinese_fonts = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Zen Hei', 
+                     'Noto Sans CJK SC', 'PingFang SC', 'Heiti SC',
+                     'Source Han Sans SC', 'AR PL UMing CN']
+    available_fonts = [f.name for f in font_manager.fontManager.ttflist]
+
+    for font_name in chinese_fonts:
+        if font_name in available_fonts:
+            plt.rcParams['font.sans-serif'] = [font_name] + plt.rcParams['font.sans-serif']
+            plt.rcParams['axes.unicode_minus'] = False
+            return font_name
+
+    # 3. 最后尝试 Linux 常见路径
+    linux_paths = [
+        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+    ]
+    for path in linux_paths:
+        if os.path.exists(path):
+            font_manager.fontManager.addfont(path)
+            prop = font_manager.FontProperties(fname=path)
+            plt.rcParams['font.family'] = prop.get_name()
+            plt.rcParams['axes.unicode_minus'] = False
+            return prop.get_name()
+
+    return None
+
+# 执行字体配置
+font_used = setup_chinese_font()
 
 st.set_page_config(page_title="拍卖实验模拟器", layout="wide")
 
-# ========== AI辅助标识 ==========
-st.markdown("""
-<div style='background-color:#e8f5e9; padding:15px; border-radius:8px; border-left:6px solid #4CAF50; margin-bottom:20px;'>
-<b>🤖 AI辅助说明</b><br>
-本模拟器由AI辅助设计开发，包含：AI策略生成（0-1背包优化）、数据可视化优化、行为偏差识别、理论辅助理解等环节。<br>
-<small>中南财经政法大学 | 经济管理前沿方法 | 实验2</small>
-</div>
-""", unsafe_allow_html=True)
-
 st.title("🎯 一级密封价格拍卖实验模拟器")
+st.markdown("*中南财经政法大学 | 经济管理前沿方法 | 实验2*")
+
+# 显示字体加载状态（调试用，部署稳定后可删除或注释掉）
+if font_used:
+    st.sidebar.success(f"✅ 字体已加载: {font_used}")
+else:
+    st.sidebar.error("⚠️ 未找到中文字体！图表中文将显示为方块")
+    st.sidebar.info("解决方案：在项目目录添加 fonts/NotoSansCJKsc-Regular.otf")
 
 # ========== 完整实验数据 ==========
+# ========== 完整实验数据 ==========
+# 完全信息条件
 VALUES_FULL = [200, 200, 200, 250, 250, 250, 300, 300, 300, 400, 400, 500]
 
 ROUND1_FULL = {
@@ -46,6 +101,7 @@ ROUND3_FULL = {
     "小组6": [0, 0, 0, 0, 0, 0, 281, 0, 0, 361, 0, 421],
 }
 
+# 不完全信息条件
 VALUES_PARTIAL_R1 = [500, 200, 200, 200, 250, 250, 300, 300, 300, 250, 400, 400]
 VALUES_PARTIAL_R2 = [200, 200, 200, 500, 250, 250, 250, 300, 300, 300, 400, 400]
 
@@ -67,6 +123,7 @@ ROUND2_PARTIAL = {
     "小组6": [254, 0, 193, 254, 0, 0, 254, 0, 0, 254, 0, 254],
 }
 
+# 总收益
 TOTAL_PROFITS = {
     "小组1": {"完全信息-R1": 0.4, "完全信息-R2": 2, "完全信息-R3": 6, "不完全信息-R1": 3.6, "不完全信息-R2": 0.8, "总计": 8.8},
     "小组2": {"完全信息-R1": 0, "完全信息-R2": 6, "完全信息-R3": 0, "不完全信息-R1": 101.2, "不完全信息-R2": 5.2, "总计": 112.4},
@@ -76,13 +133,19 @@ TOTAL_PROFITS = {
     "小组6": {"完全信息-R1": 0, "完全信息-R2": 7.5, "完全信息-R3": 4.75, "不完全信息-R1": 0, "不完全信息-R2": -1, "总计": 11.25},
 }
 
-# ========== 核心拍卖引擎 ==========
-def run_auction(bids_dict, values, budget=None, seed=42):
-    np.random.seed(seed)
+
+# ========== 核心拍卖引擎（严谨实现） ==========
+def run_auction(bids_dict, values, budget=None):
+    """
+    严格执行一级密封价格拍卖规则
+    """
     groups = list(bids_dict.keys())
     n_items = len(values)
+
+    # 转换为矩阵
     matrix = np.array([bids_dict[g] for g in groups])
 
+    # 逐物品确定获胜者
     winners = []
     winning_bids = []
 
@@ -96,15 +159,18 @@ def run_auction(bids_dict, values, budget=None, seed=42):
         else:
             valid_bids = item_bids[valid_mask]
             valid_indices = np.where(valid_mask)[0]
+
             max_bid = np.max(valid_bids)
             max_indices = valid_indices[valid_bids == max_bid]
+
             winner_idx = np.random.choice(max_indices)
-            winners.append(int(winner_idx))
-            winning_bids.append(float(max_bid))
+            winners.append(winner_idx)
+            winning_bids.append(max_bid)
 
     winners = np.array(winners)
     winning_bids = np.array(winning_bids)
 
+    # 计算各组结果（基于真实利润）
     results = {}
     for i, g in enumerate(groups):
         won_items = np.where(winners == i)[0]
@@ -112,8 +178,8 @@ def run_auction(bids_dict, values, budget=None, seed=42):
         spent = sum(winning_bids[j] for j in won_items)
         total_value = sum(values[j] for j in won_items)
         profit = total_value - spent
-        over_budget = False
 
+        over_budget = False
         if budget is not None and spent > budget:
             over_budget = True
 
@@ -129,14 +195,115 @@ def run_auction(bids_dict, values, budget=None, seed=42):
 
     return results, winners, winning_bids, groups
 
-# ========== AI策略模块（0-1背包算法） ==========
-def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0):
+
+# ========== 完全理性人基准模型 ==========
+def rational_baseline(values, n_bidders=6, budget=1500):
+    """
+    完全理性人基准：基于纳什均衡理论
+
+    理论假设：
+    - 对称竞拍者
+    - 风险中性
+    - 独立私有价值（或共同价值已知）
+
+    均衡出价：b(v) = (n-1)/n * v
+    """
+    equilibrium_ratio = (n_bidders - 1) / n_bidders
+
+    # 基础均衡出价
+    base_bids = [v * equilibrium_ratio for v in values]
+
+    # 预算约束下的选择（选择性价比最高的组合）
+    # 简化：按单位价值利润排序
+    profits = [v - b for v, b in zip(values, base_bids)]
+    profit_ratios = [p / v for p, v in zip(profits, values)]
+
+    # 0-1背包选择
+    n = len(values)
+    dp = [[0] * (budget + 1) for _ in range(n + 1)]
+    keep = [[False] * (budget + 1) for _ in range(n + 1)]
+
+    # 按利润比率排序的索引
+    sorted_indices = sorted(range(n), key=lambda i: profit_ratios[i], reverse=True)
+
+    for idx in range(1, n + 1):
+        i = sorted_indices[idx - 1]
+        for w in range(budget + 1):
+            bid = int(base_bids[i])
+            if bid <= w and profits[i] > 0:
+                if dp[idx-1][w - bid] + profits[i] > dp[idx-1][w]:
+                    dp[idx][w] = dp[idx-1][w - bid] + profits[i]
+                    keep[idx][w] = True
+                else:
+                    dp[idx][w] = dp[idx-1][w]
+            else:
+                dp[idx][w] = dp[idx-1][w]
+
+    # 回溯
+    selected = []
+    rational_bids = [0] * n
+    w = budget
+    for idx in range(n, 0, -1):
+        if keep[idx][w]:
+            i = sorted_indices[idx - 1]
+            selected.append(i + 1)
+            rational_bids[i] = int(base_bids[i])
+            w -= int(base_bids[i])
+
+    selected.reverse()
+    total_spent = sum(rational_bids)
+    true_profit = sum(values[i-1] - rational_bids[i-1] for i in selected)
+
+    return {
+        'equilibrium_ratio': equilibrium_ratio,
+        'bids': rational_bids,
+        'selected': selected,
+        'spent': total_spent,
+        'profit': true_profit,
+        'base_bids': base_bids,
+    }
+
+
+# ========== AI智能策略模块（基于历史数据） ==========
+def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, info_type="complete"):
+    """
+    AI策略：基于历史数据的组合优化（背包问题）
+
+    修正：
+    1. 不完全信息阶段，AI不知道真实价值，只能基于历史出价估计
+    2. 利润计算基于真实价值（不是估计价值）
+    """
     hist_matrix = np.array([history_dict[g] for g in history_dict.keys()])
+
+    # 估计每个物品的价值
+    if info_type == "complete":
+        # 完全信息：知道真实价值
+        estimated_values = np.array(values)
+    else:
+        # 不完全信息：基于历史出价估计价值
+        # 方法：历史平均出价 + 标准差调整
+        hist_mean = np.mean(hist_matrix, axis=0)
+        hist_std = np.std(hist_matrix, axis=0)
+        # 保守估计：均值 + 0.5倍标准差
+        estimated_values = hist_mean + 0.5 * hist_std
+        # 确保不低于历史最低出价
+        hist_min = np.min(hist_matrix, axis=0)
+        estimated_values = np.maximum(estimated_values, hist_min)
+        # 上限：不超过历史最高出价的1.5倍（防止过度估计）
+        hist_max_limit = np.max(hist_matrix, axis=0) * 1.5
+        estimated_values = np.minimum(estimated_values, hist_max_limit)
+
+    # 估计获胜价格：历史最高 × 风险厌恶系数
     hist_max = np.max(hist_matrix, axis=0)
     estimated_win = hist_max * risk_aversion + 1
-    estimated_win = np.minimum(estimated_win, values)
-    expected_profits = values - estimated_win
 
+    # 确保不超过估计价值
+    estimated_win = np.minimum(estimated_win, estimated_values)
+
+    # 计算期望利润（基于估计价值）
+    expected_profits = estimated_values - estimated_win
+
+    # 0-1背包问题：在预算约束下最大化利润
     n = len(values)
     dp = [[0] * (budget + 1) for _ in range(n + 1)]
     keep = [[False] * (budget + 1) for _ in range(n + 1)]
@@ -152,6 +319,7 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0):
             else:
                 dp[i][w] = dp[i-1][w]
 
+    # 回溯找出选中的物品
     selected = []
     ai_bids = [0] * n
     w = budget
@@ -163,42 +331,36 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0):
 
     selected.reverse()
     total_spent = sum(ai_bids)
-    total_profit = sum(values[i-1] - ai_bids[i-1] for i in selected)
 
-    return ai_bids, selected, total_spent, total_profit, hist_max, estimated_win
+    # 修正：利润基于真实价值（不是估计价值）
+    true_profit = sum(values[i-1] - ai_bids[i-1] for i in selected)
 
-# ========== AI策略模式识别 ==========
-def ai_strategy_classifier(bids_dict, values):
-    strategies = {}
-    for g, bids in bids_dict.items():
-        valid_ratios = [b/v for b, v in zip(bids, values) if b > 0]
-        if not valid_ratios:
-            strategies[g] = {'type': '完全放弃', 'avg_ratio': 0, 'variance': 0, 'zero_count': 12}
-            continue
+    return {
+        'bids': ai_bids,
+        'selected': selected,
+        'spent': total_spent,
+        'profit': true_profit,  # 基于真实价值
+        'hist_max': hist_max,
+        'estimated_win': estimated_win,
+        'estimated_values': estimated_values,
+    }
 
-        avg_ratio = np.mean(valid_ratios)
-        variance = np.var(valid_ratios) if len(valid_ratios) > 1 else 0
-        zero_count = sum(1 for b in bids if b == 0)
 
-        if avg_ratio > 0.95:
-            type_name = "激进型（接近估值出价）"
-        elif avg_ratio < 0.5:
-            type_name = "保守型（大幅低于估值）"
-        elif zero_count > 6:
-            type_name = "选择性竞拍（聚焦高价值物品）"
-        elif variance > 0.3:
-            type_name = "混合型（策略不稳定）"
-        else:
-            type_name = "均衡型（接近理论最优）"
+# ========== 理论分析模块 ==========
+def theoretical_analysis(values, n_bidders=6):
+    """
+    理论分析：基于标准拍卖理论的预测
+    """
+    equilibrium_ratio = (n_bidders - 1) / n_bidders
+    equilibrium_bids = [v * equilibrium_ratio for v in values]
 
-        strategies[g] = {
-            'type': type_name,
-            'avg_ratio': avg_ratio,
-            'variance': variance,
-            'zero_count': zero_count
-        }
+    return {
+        'equilibrium_ratio': equilibrium_ratio,
+        'equilibrium_bids': equilibrium_bids,
+        'theoretical_profit_per_item': 0,
+        'note': '标准理论假设估值连续分布、对称风险中性竞拍者，本实验为离散固定值，仅供参考'
+    }
 
-    return strategies
 
 # ========== 侧边栏导航 ==========
 st.sidebar.header("📋 实验条件")
@@ -213,33 +375,39 @@ round_num = st.sidebar.radio(
     ["第一轮", "第二轮", "第三轮（仅完全信息）"]
 )
 
+# 根据选择加载数据
 if experiment_type == "完全信息（估值公开）":
     if round_num == "第一轮":
         current_data = ROUND1_FULL
         current_values = VALUES_FULL
         budget = None
         info_text = "完全信息 | 第一轮 | 无预算约束"
+        info_type = "complete"
     elif round_num == "第二轮":
         current_data = ROUND2_FULL
         current_values = VALUES_FULL
         budget = 1500
         info_text = "完全信息 | 第二轮 | 预算1500"
+        info_type = "complete"
     else:
         current_data = ROUND3_FULL
         current_values = VALUES_FULL
         budget = 1500
-        info_text = "完全信息 | 第三轮 | 预算1500 | 可交流"
+        info_text = "完全信息 | 第三轮 | 预算1500"
+        info_type = "complete"
 else:
     if round_num == "第一轮":
         current_data = ROUND1_PARTIAL
         current_values = VALUES_PARTIAL_R1
         budget = None
         info_text = "不完全信息 | 第一轮 | 无预算约束"
+        info_type = "incomplete"
     elif round_num == "第二轮":
         current_data = ROUND2_PARTIAL
         current_values = VALUES_PARTIAL_R2
         budget = 1500
-        info_text = "不完全信息 | 第二轮 | 预算1500 | 可交流"
+        info_text = "不完全信息 | 第二轮 | 预算1500"
+        info_type = "incomplete"
     else:
         st.sidebar.error("不完全信息没有第三轮数据")
         st.stop()
@@ -247,18 +415,11 @@ else:
 st.sidebar.info(info_text)
 
 # ========== 主界面 ==========
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 实验结果", 
-    "🏆 模拟竞拍", 
-    "🤖 AI策略", 
-    "📈 理论分析",
-    "👥 我们小组"
-])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 实验结果", "🏆 模拟竞拍", "🤖 AI智能策略", "🧮 完全理性人基准", "📈 理论分析"])
 
 # ========== Tab 1: 实验结果 ==========
 with tab1:
     st.header(f"实验结果：{info_text}")
-    st.caption("🤖 AI辅助：数据整理与可视化")
 
     results, winners, wb, groups = run_auction(current_data, current_values, budget)
 
@@ -286,11 +447,10 @@ with tab1:
 
     with col2:
         st.subheader("赢得物品数")
-        chart_df2 = df.copy()
-        chart_df2['数量'] = chart_df2['赢得物品'].str.extract(r'(\d+)').astype(int)
-        st.bar_chart(chart_df2.set_index('小组')[['数量']])
+        chart_df2 = df.set_index('小组')[['赢得物品']]
+        chart_df2['数量'] = chart_df2['赢得物品'].str.extract('(\d+)').astype(int)
+        st.bar_chart(chart_df2[['数量']])
 
-    # 逐物品明细
     st.subheader("逐物品拍卖明细")
     df_items = []
     for i in range(12):
@@ -311,23 +471,14 @@ with tab1:
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
-    # AI策略模式识别
-    st.subheader("🤖 AI策略模式识别")
-    strategies = ai_strategy_classifier(current_data, current_values)
-    df_strat = pd.DataFrame([
-        {"小组": g, "策略类型": s['type'], "平均出价/估值": f"{s['avg_ratio']:.1%}", 
-         "零出价数": s['zero_count'], "策略稳定性": "高" if s['variance'] < 0.2 else "低"}
-        for g, s in strategies.items()
-    ])
-    st.dataframe(df_strat, hide_index=True, use_container_width=True)
 
 # ========== Tab 2: 模拟竞拍 ==========
 with tab2:
     st.header("🏆 模拟竞拍体验")
-    st.caption("🤖 AI辅助：交互式模拟引擎")
     st.info("输入你的出价，与历史数据中的小组竞争")
 
     user_budget = st.slider("你的预算", 500, 3000, 1500, key="sim_budget")
+
     opponent_options = list(current_data.keys())
     selected_opponents = st.multiselect(
         "选择对手（至少选1个）",
@@ -390,37 +541,18 @@ with tab2:
 
         st.dataframe(pd.DataFrame(df_sim), hide_index=True, use_container_width=True)
 
-        # AI对比
-        st.subheader("🤖 AI策略对比")
-        ai_bids, ai_selected, ai_spent, ai_profit, hist_max, est_win = ai_knapsack_strategy(
-            current_values, current_data, user_budget
-        )
 
-        ai_sim_bids = {"AI": ai_bids}
-        for opp in selected_opponents:
-            ai_sim_bids[opp] = current_data[opp]
-        ai_sim_results, _, _, _ = run_auction(ai_sim_bids, current_values, user_budget)
-        ai_actual = ai_sim_results["AI"]
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("AI利润（估计）", f"{ai_profit:.0f}")
-        with col2:
-            st.metric("AI利润（实际）", f"{ai_actual['profit']}")
-        with col3:
-            st.metric("你的利润", f"{you['profit']}")
-
-# ========== Tab 3: AI策略 ==========
+# ========== Tab 3: AI智能策略 ==========
 with tab3:
-    st.header("🤖 AI策略分析")
-    st.caption("🤖 AI辅助：0-1背包优化算法")
+    st.header("🤖 AI智能策略")
+    st.info("基于历史数据的组合优化策略（启发式，非理论均衡）")
 
     ai_budget = st.slider("AI预算", 500, 3000, 1500, key="ai_budget")
     risk_level = st.slider("风险厌恶系数", 0.5, 2.0, 1.0, 0.1,
                           help=">1更保守（出价更高确保获胜），<1更激进")
 
-    ai_bids, ai_selected, ai_spent, ai_profit, hist_max, est_win = ai_knapsack_strategy(
-        current_values, current_data, ai_budget, risk_level
+    ai_result = ai_knapsack_strategy(
+        current_values, current_data, ai_budget, risk_level, info_type
     )
 
     st.subheader("AI出价策略")
@@ -429,10 +561,10 @@ with tab3:
         df_ai.append({
             "物品": i + 1,
             "估值": current_values[i],
-            "历史最高": hist_max[i],
-            "估计获胜价": est_win[i],
-            "AI出价": ai_bids[i] if ai_bids[i] > 0 else "放弃",
-            "估计利润": current_values[i] - ai_bids[i] if ai_bids[i] > 0 else 0,
+            "历史最高": ai_result['hist_max'][i],
+            "估计获胜价": ai_result['estimated_win'][i],
+            "AI出价": ai_result['bids'][i] if ai_result['bids'][i] > 0 else "放弃",
+            "真实利润": current_values[i] - ai_result['bids'][i] if ai_result['bids'][i] > 0 else 0,
         })
 
     st.dataframe(pd.DataFrame(df_ai), hide_index=True, use_container_width=True)
@@ -440,17 +572,17 @@ with tab3:
     st.subheader("AI选择结果")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("选中物品", f"{len(ai_selected)}件")
+        st.metric("选中物品", f"{len(ai_result['selected'])}件")
     with col2:
-        st.metric("预计支出", f"{ai_spent}")
+        st.metric("预计支出", f"{ai_result['spent']}")
     with col3:
-        st.metric("预计利润", f"{ai_profit:.0f}")
+        st.metric("真实利润", f"{ai_result['profit']}")
 
-    st.write(f"**选中物品编号**: {ai_selected}")
+    st.write(f"**选中物品编号**: {ai_result['selected']}")
 
-    # AI在真实竞争中的表现
+    # 模拟AI在真实竞争中的表现
     st.subheader("AI在真实竞争中的模拟")
-    ai_test = {"AI": ai_bids}
+    ai_test = {"AI": ai_result['bids']}
     for g in current_data.keys():
         ai_test[g] = current_data[g]
 
@@ -470,26 +602,82 @@ with tab3:
     - 基于历史数据估计每个物品的获胜价格
     - 使用0-1背包算法在预算约束下最大化利润
     - 风险厌恶系数调整估计的保守程度
+    - **注意**：这是启发式策略，不是理论最优均衡
     - 实际利润取决于对手本轮的真实出价（AI无法预知）
     """)
 
-# ========== Tab 4: 理论分析（去掉83.3修正） ==========
-with tab4:
-    st.header("📈 理论分析")
-    st.caption("🤖 AI辅助：理论理解与行为偏差识别")
 
-    st.subheader("拍卖理论基础")
-    st.markdown("""
-    **第一价格密封拍卖理论要点**：
-    - 竞拍者同时独立出价，最高出价者获胜并支付自己的出价
-    - 在完全信息条件下，竞争会推高价格接近真实价值
-    - 在不完全信息条件下，竞拍者需基于贝叶斯推断估计他人出价
-    - 赢者诅咒：获胜者往往是对物品估值过高的人，可能反而亏损
-    - 学习效应：多轮竞拍中，参与者通过经验调整策略
+# ========== Tab 4: 完全理性人基准 ==========
+with tab4:
+    st.header("🧮 完全理性人基准模型")
+    st.info("基于纳什均衡理论的理论最优策略")
+
+    rational_budget = st.slider("理性人预算", 500, 3000, 1500, key="rational_budget")
+    n_bidders = st.slider("竞拍者数量", 2, 10, 6, key="n_bidders")
+
+    rational_result = rational_baseline(current_values, n_bidders, rational_budget)
+
+    st.subheader("理论均衡出价")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("均衡出价比例", f"{rational_result['equilibrium_ratio']:.1%}")
+    with col2:
+        st.metric("理论单件利润", f"{rational_result['equilibrium_ratio']*100:.1f}%")
+    with col3:
+        st.metric("理论总利润", f"{rational_result['profit']}")
+
+    df_rational = []
+    for i in range(12):
+        df_rational.append({
+            "物品": i + 1,
+            "估值": current_values[i],
+            "理论均衡出价": rational_result['base_bids'][i],
+            "是否选中": "✅" if rational_result['bids'][i] > 0 else "❌",
+            "实际出价": rational_result['bids'][i] if rational_result['bids'][i] > 0 else "放弃",
+            "单件利润": current_values[i] - rational_result['base_bids'][i],
+        })
+
+    st.dataframe(pd.DataFrame(df_rational), hide_index=True, use_container_width=True)
+
+    st.write(f"**选中物品**: {rational_result['selected']}")
+    st.write(f"**总支出**: {rational_result['spent']}")
+    st.write(f"**总利润**: {rational_result['profit']}")
+
+    # 与真人对比
+    st.subheader("理性人 vs 真人对比")
+    real_results, _, _, _ = run_auction(current_data, current_values, budget)
+
+    avg_real_profit = np.mean([real_results[g]['profit'] for g in real_results.keys()])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("理性人利润", f"{rational_result['profit']}")
+    with col2:
+        st.metric("真人平均利润", f"{avg_real_profit:.1f}")
+    with col3:
+        st.metric("差距", f"{rational_result['profit'] - avg_real_profit:.1f}")
+
+    st.info("""
+    **理论说明**：
+    - 基于一级密封拍卖对称纳什均衡
+    - 假设：风险中性、对称竞拍者、独立私有价值
+    - 均衡出价 = (n-1)/n × 估值
+    - 理论预测利润趋近于零（竞争压缩）
+    - **注意**：本实验为离散固定估值，理论仅供参考
     """)
 
-    # 实际出价分析
-    st.subheader("实际出价分析")
+
+# ========== Tab 5: 理论分析 ==========
+with tab5:
+    st.header("📈 理论分析")
+
+    theory = theoretical_analysis(current_values, n_bidders=6)
+
+    st.subheader("标准拍卖理论预测")
+    st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
+    st.write(f"**理论说明**: {theory['note']}")
+
+    st.subheader("实际 vs 理论出价对比")
 
     df_compare = []
     for g in current_data.keys():
@@ -503,22 +691,26 @@ with tab4:
                     "估值": current_values[i],
                     "出价": bids[i],
                     "出价/估值": ratio,
+                    "理论均衡": theory['equilibrium_ratio'],
+                    "偏离均衡": ratio - theory['equilibrium_ratio'],
                 })
 
     df_comp = pd.DataFrame(df_compare)
+
     avg_ratio = df_comp['出价/估值'].mean()
     std_ratio = df_comp['出价/估值'].std()
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("平均出价/估值", f"{avg_ratio:.1%}")
+        st.metric("平均出价/估值", f"{avg_ratio:.2%}")
     with col2:
-        st.metric("出价离散度", f"{std_ratio:.2f}")
+        st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
+    with col3:
+        st.metric("偏离程度", f"{avg_ratio - theory['equilibrium_ratio']:.2%}")
 
     st.dataframe(df_comp, hide_index=True, use_container_width=True)
 
-    # 可视化
-    st.subheader("出价分布可视化")
+    st.subheader("出价偏离度分布")
     fig, ax = plt.subplots(figsize=(10, 6))
 
     for g in current_data.keys():
@@ -527,123 +719,28 @@ with tab4:
             ax.scatter(group_data['物品'], group_data['出价/估值'],
                       label=g, alpha=0.7, s=60)
 
-    ax.axhline(y=1.0, color='red', linestyle='--',
-              linewidth=2, label='真实估值 (100%)')
-    ax.axhline(y=avg_ratio, color='green', linestyle=':',
-              linewidth=2, label=f'平均出价 ({avg_ratio:.1%})')
+    ax.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--',
+              linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
+    ax.axhline(y=1.0, color='orange', linestyle=':',
+              linewidth=1.5, label='真实出价 (100%)')
 
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
-    ax.set_title('各组出价分布与理论参照对比')
+    ax.set_title('各组出价偏离理论均衡程度')
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 1.2)
 
     st.pyplot(fig)
 
-    # 行为经济学解释
-    st.subheader("🧠 AI辅助的行为经济学解释")
-
-    all_ratios = df_comp['出价/估值'].values
-    overconfident = np.mean(all_ratios > 0.95)
-
-    st.markdown(f"""
-    **AI识别的行为偏差**：
-
-    | 偏差类型 | 证据 | 程度 |
-    |---------|------|------|
-    | **过度自信** | {overconfident:.1%}的出价接近/超过估值 | {'高' if overconfident > 0.3 else '中' if overconfident > 0.1 else '低'} |
-    | **赢者诅咒** | 高估值物品竞争激烈，利润趋近于0 | 显著 |
-    | **预算效应** | {'有预算时出价显著降低' if budget else '本轮无预算约束'} | {'显著' if budget else '无'} |
-    | **信息效应** | {'不完全信息下出价更分散' if '不完全' in info_text else '完全信息下出价集中'} | 显著 |
-
-    **AI辅助结论**：人类行为系统性地偏离理性假设，但AI可以量化这些偏差并辅助理解理论。
+    st.markdown("""
+    **关键发现**：
+    - 理论预测均衡出价应为估值的83.3%（6人竞争）
+    - 完全信息阶段实际出价接近100%（过度竞争）
+    - 不完全信息阶段出价分化显著（40%-150%）
+    - 真人行为系统性地偏离理论最优，这正是行为经济学的研究空间
     """)
 
-# ========== Tab 5: 我们小组 ==========
-with tab5:
-    st.header("👥 我们小组的实验表现与AI辅助分析")
-    st.caption("🤖 AI辅助：策略评估与改进建议")
-
-    our_group = st.selectbox("选择你们的小组", list(current_data.keys()))
-
-    our_bids = current_data[our_group]
-    our_results = results[our_group]
-
-    st.subheader(f"{our_group}的出价策略")
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("净利润", f"{our_results['profit']}")
-    with col2:
-        st.metric("赢得物品", f"{our_results['num']}件")
-    with col3:
-        st.metric("总支出", f"{our_results['spent']}")
-    with col4:
-        st.metric("预算状态", "✅正常" if not our_results['over_budget'] else "❌超支")
-
-    df_our = []
-    for i in range(12):
-        ratio = our_bids[i] / current_values[i] if our_bids[i] > 0 else 0
-        df_our.append({
-            "物品": i + 1,
-            "估值": current_values[i],
-            "我们出价": our_bids[i] if our_bids[i] > 0 else "放弃",
-            "出价/估值": f"{ratio:.1%}" if our_bids[i] > 0 else "-",
-            "成交": "✅" if (i+1) in our_results['items'] else "❌",
-        })
-    st.dataframe(pd.DataFrame(df_our), hide_index=True, use_container_width=True)
-
-    # AI策略对比
-    st.subheader("🤖 AI策略对比与建议")
-
-    ai_bids, ai_selected, ai_spent, ai_profit, hist_max, est_win = ai_knapsack_strategy(
-        current_values, current_data, budget or 1500
-    )
-
-    our_valid_ratios = [b/v for b, v in zip(our_bids, current_values) if b > 0]
-    our_avg_ratio = np.mean(our_valid_ratios) if our_valid_ratios else 0
-    our_zero_count = sum(1 for b in our_bids if b == 0)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"""
-        **我们小组的策略特征**：
-        - 平均出价/估值：**{our_avg_ratio:.1%}**
-        - 放弃物品数：**{our_zero_count}件**
-        - 策略类型：**{ai_strategy_classifier({our_group: our_bids}, current_values)[our_group]['type']}**
-        """)
-
-    with col2:
-        st.markdown(f"""
-        **AI建议策略**：
-        - AI平均出价/估值：**{np.mean([b/v for b, v in zip(ai_bids, current_values) if b > 0]):.1%}**
-        - AI放弃物品数：**{sum(1 for b in ai_bids if b == 0)}件**
-        - AI预计利润：**{ai_profit:.0f}**
-        """)
-
-    # 逐物品对比
-    st.subheader("逐物品：我们 vs AI")
-    df_compare_our = []
-    for i in range(12):
-        our_bid = our_bids[i]
-        ai_bid = ai_bids[i]
-        df_compare_our.append({
-            "物品": i + 1,
-            "估值": current_values[i],
-            "我们出价": our_bid if our_bid > 0 else "放弃",
-            "AI出价": ai_bid if ai_bid > 0 else "放弃",
-            "差异": (our_bid - ai_bid) if our_bid > 0 and ai_bid > 0 else "-",
-            "AI建议": "出价过高" if our_bid > ai_bid > 0 else "出价过低" if 0 < our_bid < ai_bid else "一致",
-        })
-    st.dataframe(pd.DataFrame(df_compare_our), hide_index=True, use_container_width=True)
-
-    st.info("""
-    **AI辅助决策价值**：
-    - AI基于历史数据优化，但无法预知对手本轮实际出价
-    - 人类可以利用直觉和实时判断，弥补AI的信息不足
-    - **最佳策略：AI辅助分析 + 人类最终决策**
-    """)
 
 # ========== 底部：总收益汇总 ==========
 st.markdown("---")
@@ -667,4 +764,4 @@ st.dataframe(df_total, hide_index=True, use_container_width=True)
 
 st.bar_chart(df_total.set_index('小组')[['总计']])
 
-st.caption("📝 数据来源：实验2统计表 | AI辅助分析：策略识别、数据可视化、理论理解")
+st.caption("📝 数据来源：实验2统计表 | 理论参考：一级密封价格拍卖纳什均衡")
