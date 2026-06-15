@@ -621,7 +621,8 @@ with tab4:
     with col1:
         st.metric("均衡出价比例", f"{rational_result['equilibrium_ratio']:.1%}")
     with col2:
-        st.metric("理论单件利润", f"{rational_result['equilibrium_ratio']*100:.1f}%")
+        avg_item_profit = rational_result['profit'] / len(rational_result['selected']) if rational_result['selected'] else 0
+        st.metric("理论单件利润", f"{avg_item_profit:.0f} 币")
     with col3:
         st.metric("理论总利润", f"{rational_result['profit']}")
 
@@ -661,9 +662,10 @@ with tab4:
     - 基于一级密封拍卖对称纳什均衡
     - 标准假设：风险中性、对称竞拍者、**独立私有价值（IPV）**
     - 均衡出价 = (n-1)/n × 估值
-    - 本实验为**共同价值**设定（所有人认同同一估价），不同于 IPV
-    - 共同价值下竞争更激烈，均衡趋向接近估值；IPV 下理性人出价低于估值
-    - 因此本基准仅供参考方向（"理性人出价低于估值"），不要求预测精确数字
+    - 本实验为**共同价值**设定（所有人对同一物品估价相同），不同于 IPV
+    - 完全信息时，共同价值趋向伯川德竞争（出价接近估值，利润趋零）
+    - 不完全信息时，共同价值引发赢家诅咒，理性人反而应压低出价
+    - 因此本基准仅供参考方向，不要求预测精确数字
     """)
 
 
@@ -722,22 +724,22 @@ with tab5:
     ax.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--',
               linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     ax.axhline(y=1.0, color='orange', linestyle=':',
-              linewidth=1.5, label='真实出价 (100%)')
+              linewidth=1.5, label='出价等于估值 (100%)')
 
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
     ax.set_title('各组出价偏离理论均衡程度')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    ax.set_ylim(0, 1.2)
+    ax.set_ylim(0, 1.6)
 
     st.pyplot(fig)
 
     st.markdown("""
     **关键发现**：
-    - 理论预测均衡出价应为估值的83.3%（6人竞争）
-    - 完全信息阶段实际出价接近100%（过度竞争）
-    - 不完全信息阶段出价分化显著（40%-150%）
+    - 理论预测均衡出价应为估值的83.3%（6组竞争，每组视为一个竞拍主体，n=6）
+    - 完全信息阶段中标价接近估值（93.47%），平均出价仅54%（过度竞争挤压利润）
+    - 不完全信息阶段出价分化显著（从试探性的个位数到赢家诅咒的 150% 不等）
     - 真人行为系统性地偏离理论最优，这正是行为经济学的研究空间
     """)
 
