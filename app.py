@@ -6,9 +6,10 @@ import matplotlib
 from matplotlib import font_manager
 import os
 
-# ========== 中文字体配置 ==========
+# ========== 中文字体配置（必须在所有绘图之前）==========
 def setup_chinese_font():
     """配置中文字体，支持本地和云端部署"""
+    # 1. 先尝试加载项目目录下的字体文件（最可靠）
     base_dir = os.path.dirname(os.path.abspath(__file__))
     font_candidates = [
         os.path.join(base_dir, 'NotoSansCJKsc-Regular.otf'),
@@ -25,6 +26,7 @@ def setup_chinese_font():
             plt.rcParams['axes.unicode_minus'] = False
             return prop.get_name()
 
+    # 2. 回退：查找系统已安装的中文字体
     chinese_fonts = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Zen Hei', 
                      'Noto Sans CJK SC', 'PingFang SC', 'Heiti SC',
                      'Source Han Sans SC', 'AR PL UMing CN']
@@ -36,6 +38,7 @@ def setup_chinese_font():
             plt.rcParams['axes.unicode_minus'] = False
             return font_name
 
+    # 3. 最后尝试 Linux 常见路径
     linux_paths = [
         '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
         '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
@@ -51,13 +54,23 @@ def setup_chinese_font():
 
     return None
 
+# 执行字体配置
 font_used = setup_chinese_font()
+
 st.set_page_config(page_title="拍卖实验模拟器", layout="wide")
 
 st.title("🎯 一级密封价格拍卖实验模拟器")
 st.markdown("*中南财经政法大学 | 经济管理前沿方法 | 实验2 | 小组1-5各5人，小组6为4人*")
 
+# 字体加载状态（如需调试可取消注释）
+# if font_used:
+#     st.sidebar.success(f"✅ 字体已加载: {font_used}")
+# else:
+#     st.sidebar.error("⚠️ 未找到中文字体！图表中文将显示为方块")
+
 # ========== 完整实验数据 ==========
+# ========== 完整实验数据 ==========
+# 完全信息条件
 VALUES_FULL = [200, 200, 200, 250, 250, 250, 300, 300, 300, 400, 400, 500]
 
 ROUND1_FULL = {
@@ -87,6 +100,7 @@ ROUND3_FULL = {
     "小组6": [0, 0, 0, 0, 0, 0, 281, 0, 0, 361, 0, 421],
 }
 
+# 不完全信息条件
 VALUES_PARTIAL_R1 = [500, 200, 200, 200, 250, 250, 300, 300, 300, 250, 400, 400]
 VALUES_PARTIAL_R2 = [200, 200, 200, 500, 250, 250, 250, 300, 300, 300, 400, 400]
 
@@ -108,6 +122,7 @@ ROUND2_PARTIAL = {
     "小组6": [254, 0, 193, 254, 0, 0, 254, 0, 0, 254, 0, 254],
 }
 
+# 总收益
 TOTAL_PROFITS = {
     "小组1": {"完全信息-R1": 0.4, "完全信息-R2": 2, "完全信息-R3": 6, "不完全信息-R1": 3.6, "不完全信息-R2": 0.8, "总计": 12.8},
     "小组2": {"完全信息-R1": 0, "完全信息-R2": 6, "完全信息-R3": 0, "不完全信息-R1": 102.2, "不完全信息-R2": 5.2, "总计": 113.4},
@@ -118,13 +133,18 @@ TOTAL_PROFITS = {
 }
 
 
-# ========== 核心拍卖引擎 ==========
+# ========== 核心拍卖引擎（严谨实现） ==========
 def run_auction(bids_dict, values, budget=None):
-    """严格执行一级密封价格拍卖规则"""
+    """
+    严格执行一级密封价格拍卖规则
+    """
     groups = list(bids_dict.keys())
     n_items = len(values)
+
+    # 转换为矩阵
     matrix = np.array([bids_dict[g] for g in groups])
 
+    # 逐物品确定获胜者
     winners = []
     winning_bids = []
 
@@ -138,8 +158,10 @@ def run_auction(bids_dict, values, budget=None):
         else:
             valid_bids = item_bids[valid_mask]
             valid_indices = np.where(valid_mask)[0]
+
             max_bid = np.max(valid_bids)
             max_indices = valid_indices[valid_bids == max_bid]
+
             winner_idx = np.random.choice(max_indices)
             winners.append(winner_idx)
             winning_bids.append(max_bid)
@@ -147,6 +169,7 @@ def run_auction(bids_dict, values, budget=None):
     winners = np.array(winners)
     winning_bids = np.array(winning_bids)
 
+    # 计算各组结果（基于真实利润）
     results = {}
     for i, g in enumerate(groups):
         won_items = np.where(winners == i)[0]
@@ -154,6 +177,7 @@ def run_auction(bids_dict, values, budget=None):
         spent = sum(winning_bids[j] for j in won_items)
         total_value = sum(values[j] for j in won_items)
         profit = total_value - spent
+
         over_budget = False
         if budget is not None and spent > budget:
             over_budget = True
@@ -201,6 +225,7 @@ def rational_baseline(values, n_bidders=6, budget=1500):
     # 按利润比率排序的索引
     sorted_indices = sorted(range(n), key=lambda i: profit_ratios[i], reverse=True)
 
+    # ========== 修复：DP循环使用sorted_indices ==========
     for idx in range(1, n + 1):
         i = sorted_indices[idx - 1]  # 按利润比率排序后的物品索引
         bid = int(base_bids[i])
@@ -287,6 +312,7 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
     # 按期望利润排序的索引（利润高的优先）
     sorted_indices = sorted(range(n), key=lambda i: expected_profits[i], reverse=True)
 
+    # ========== 修复：DP循环使用sorted_indices ==========
     for idx in range(1, n + 1):
         i = sorted_indices[idx - 1]  # 按期望利润排序后的物品索引
         bid = int(estimated_win[i])
@@ -308,14 +334,14 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
     for idx in range(n, 0, -1):
         if keep[idx][w]:
             i = sorted_indices[idx - 1]
-            selected.append(i + 1)  # 修正：存1-based物品编号
+            selected.append(i)
             ai_bids[i] = int(estimated_win[i])
             w -= int(estimated_win[i])
 
     selected.reverse()
     total_spent = sum(ai_bids)
 
-    # 修正：利润基于真实价值（不是估计价值），使用1-based索引
+    # 修正：利润基于真实价值（不是估计价值）
     true_profit = sum(values[i-1] - ai_bids[i-1] for i in selected)
 
     return {
@@ -330,30 +356,18 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
 
 
 # ========== 理论分析模块 ==========
-def theoretical_analysis(values, n_bidders=6, info_type="complete"):
+def theoretical_analysis(values, n_bidders=6):
     """
-    理论分析：根据信息条件选择正确的理论框架
-
-    关键区分：
-    - 完全信息 + 共同价值 → 伯川德竞争，利润趋零
-    - 不完全信息 + IPV → 纳什均衡 b(v) = (n-1)/n * v
+    理论分析：基于标准拍卖理论的预测
     """
-    if info_type == "complete":
-        equilibrium_ratio = 1.0  # 完全信息下出价趋近估值
-        note = ('完全信息共同价值：所有竞拍者知道真实价值，竞争趋向伯川德均衡，'
-                '出价接近估值，理论利润趋近于零。')
-    else:
-        equilibrium_ratio = (n_bidders - 1) / n_bidders
-        note = ('不完全信息IPV：独立私有价值，对称风险中性竞拍者的纳什均衡 '
-                'b(v) = (n-1)/n * v。')
-
+    equilibrium_ratio = (n_bidders - 1) / n_bidders
     equilibrium_bids = [v * equilibrium_ratio for v in values]
 
     return {
         'equilibrium_ratio': equilibrium_ratio,
         'equilibrium_bids': equilibrium_bids,
-        'theoretical_profit_per_item': 0 if info_type == "complete" else None,
-        'note': note
+        'theoretical_profit_per_item': 0,
+        'note': '标准理论假设估值连续分布、对称风险中性竞拍者，本实验为离散固定值，仅供参考'
     }
 
 
@@ -365,11 +379,13 @@ experiment_type = st.sidebar.radio(
     ["完全信息（估值公开）", "不完全信息（位置互换）"]
 )
 
+# ========== 修复：动态控制轮次选项 ==========
 round_options = ["第一轮", "第二轮"]
 if experiment_type == "完全信息（估值公开）":
     round_options.append("第三轮（仅完全信息）")
 round_num = st.sidebar.radio("选择轮次", round_options)
 
+# 根据选择加载数据
 if experiment_type == "完全信息（估值公开）":
     if round_num == "第一轮":
         current_data = ROUND1_FULL
@@ -467,6 +483,7 @@ with tab1:
             "获胜者": winner,
             "利润": profit,
         }
+        # 仅在不完全信息阶段显示赢家诅咒
         if info_type == "incomplete":
             if is_curse:
                 item_data["成交性质"] = "⚠️ 赢家诅咒（出价>估值）"
@@ -476,6 +493,7 @@ with tab1:
                 item_data["成交性质"] = "流拍"
         df_items.append(item_data)
 
+    # 仅在不完全信息阶段显示赢家诅咒提示
     if info_type == "incomplete":
         if curse_count > 0:
             st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值，中标即亏损）")
@@ -483,33 +501,6 @@ with tab1:
             st.info("本轮未出现赢家诅咒（所有成交价均≤估值）")
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
-
-    # 新增：各组出价热力图
-    st.subheader("各组出价热力图")
-    bid_matrix = []
-    for g in groups:
-        row = current_data[g]
-        bid_matrix.append(row)
-
-    fig, ax = plt.subplots(figsize=(12, 5))
-    im = ax.imshow(bid_matrix, cmap='YlOrRd', aspect='auto')
-    ax.set_xticks(range(12))
-    ax.set_xticklabels([f'物品{i+1}\n(估值{current_values[i]})' for i in range(12)], fontsize=8)
-    ax.set_yticks(range(len(groups)))
-    ax.set_yticklabels(groups)
-    ax.set_title('各组对各物品的出价（颜色越深出价越高）')
-
-    # 在每个格子里标注数值
-    for i in range(len(groups)):
-        for j in range(12):
-            bid = bid_matrix[i][j]
-            if bid > 0:
-                text_color = 'white' if bid > 300 else 'black'
-                ax.text(j, i, int(bid), ha='center', va='center', color=text_color, fontsize=8)
-
-    plt.colorbar(im, ax=ax, label='出价')
-    plt.tight_layout()
-    st.pyplot(fig)
 
 
 # ========== Tab 2: 模拟竞拍 ==========
@@ -603,7 +594,7 @@ with tab3:
             "物品": i + 1,
             "估值": current_values[i],
             "历史最高": ai_result['hist_max'][i],
-            "估计获胜价": round(ai_result['estimated_win'][i], 1),
+            "估计获胜价": ai_result['estimated_win'][i],
             "AI出价": ai_result['bids'][i] if ai_result['bids'][i] > 0 else "放弃",
             "真实利润": current_values[i] - ai_result['bids'][i] if ai_result['bids'][i] > 0 else 0,
         })
@@ -677,10 +668,10 @@ with tab4:
         df_rational.append({
             "物品": i + 1,
             "估值": current_values[i],
-            "理论均衡出价": round(rational_result['base_bids'][i], 1),
+            "理论均衡出价": rational_result['base_bids'][i],
             "是否选中": "✅" if rational_result['bids'][i] > 0 else "❌",
             "实际出价": rational_result['bids'][i] if rational_result['bids'][i] > 0 else "放弃",
-            "单件利润": round(current_values[i] - rational_result['base_bids'][i], 1),
+            "单件利润": current_values[i] - rational_result['base_bids'][i],
         })
 
     st.dataframe(pd.DataFrame(df_rational), hide_index=True, use_container_width=True)
@@ -706,35 +697,15 @@ with tab4:
                  delta="理性人更高" if gap > 0 else "真人更高",
                  delta_color="normal")
 
-    # 新增：逐轮利润对比图
-    st.subheader("理性人 vs 各组利润对比")
-    profit_data = {"理性人": rational_result['profit']}
-    for g in real_results:
-        profit_data[g] = real_results[g]['profit']
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    colors = ['red' if k == '理性人' else 'skyblue' for k in profit_data.keys()]
-    bars = ax.bar(profit_data.keys(), profit_data.values(), color=colors)
-    ax.axhline(y=0, color='black', linewidth=0.5)
-    ax.set_ylabel('净利润')
-    ax.set_title('理性人基准 vs 各组实际利润')
-
-    # 在柱子上标注数值
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.1f}', ha='center', va='bottom' if height > 0 else 'top', fontsize=9)
-
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    st.info(f"""
+    st.info("""
     **理论说明**：
-    - 当前设定：{'完全信息共同价值' if info_type == 'complete' else '不完全信息IPV'}
-    - {'完全信息下，共同价值趋向伯川德竞争（出价接近估值，利润趋零）' if info_type == 'complete' else '不完全信息下，IPV的纳什均衡出价 = (n-1)/n × 估值'}
-    - 小组6仅4人，但模型按{n_bidders}人计算均衡（可调整）
-    - 理性人假设：风险中性、预算约束、组合优化
+    - 基于一级密封拍卖对称纳什均衡
+    - 标准假设：风险中性、对称竞拍者、**独立私有价值（IPV）**
+    - 均衡出价 = (n-1)/n × 估值
+    - 本实验为**共同价值**设定（所有人对同一物品估价相同），不同于 IPV
+    - 完全信息时，共同价值趋向伯川德竞争（出价接近估值，利润趋零）
+    - 不完全信息时，共同价值引发赢家诅咒，理性人反而应压低出价
+    - 因此本基准仅供参考方向，不要求预测精确数字
     """)
 
 
@@ -742,11 +713,11 @@ with tab4:
 with tab5:
     st.header("📈 理论分析")
 
-    theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type)
+    theory = theoretical_analysis(current_values, n_bidders=6)
 
     st.subheader("标准拍卖理论预测")
     st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
-    st.info(f"**理论说明**: {theory['note']}")
+    st.write(f"**理论说明**: {theory['note']}")
 
     st.subheader("实际 vs 理论出价对比")
 
@@ -771,7 +742,7 @@ with tab5:
     avg_ratio = df_comp['出价/估值'].mean()
     std_ratio = df_comp['出价/估值'].std()
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("平均出价/估值", f"{avg_ratio:.2%}")
     with col2:
@@ -781,8 +752,6 @@ with tab5:
         st.metric("偏离程度", f"{dev:.2%}",
                  delta="高于均衡" if dev > 0 else "低于均衡",
                  delta_color="normal")
-    with col4:
-        st.metric("出价离散度(Std)", f"{std_ratio:.2%}")
 
     st.dataframe(df_comp, hide_index=True, use_container_width=True)
 
@@ -805,7 +774,7 @@ with tab5:
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
     ax.set_title('各组出价偏离理论均衡程度')
-    ax.set_xticks(range(1, 13))
+    ax.set_xticks(range(1, 13))  # 强制显示所有物品编号1-12
     ax.set_xticklabels(range(1, 13))
     ax.legend()
     ax.grid(True, alpha=0.3)
@@ -813,38 +782,11 @@ with tab5:
 
     st.pyplot(fig)
 
-    # 新增：箱线图展示组间差异（修复空数组bug）
-    st.subheader("出价分布箱线图")
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    group_ratios = []
-    group_labels = []
-    for g in current_data.keys():
-        bids = np.array(current_data[g])
-        valid = bids > 0
-        if np.any(valid):  # 修复：只添加有有效出价的小组
-            ratios = bids[valid] / np.array(current_values)[valid]
-            group_ratios.append(ratios)
-            group_labels.append(g)
-
-    if group_ratios:
-        bp = ax2.boxplot(group_ratios, labels=group_labels, patch_artist=True)
-        for patch in bp['boxes']:
-            patch.set_facecolor('lightblue')
-        ax2.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--', label='理论均衡')
-        ax2.set_ylabel('出价/估值')
-        ax2.set_title('各组出价/估值分布对比')
-        ax2.legend()
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        st.pyplot(fig2)
-    else:
-        st.info("所有小组均无有效出价，无法绘制箱线图")
-
-    st.markdown(f"""
+    st.markdown("""
     **关键发现**：
-    - {'完全信息阶段：理论预测出价应接近估值（100%），实际平均出价/估值为' if info_type == 'complete' else '不完全信息阶段：理论预测均衡出价应为估值的83.3%（6组竞争），实际平均出价/估值为'} **{avg_ratio:.2%}**
-    - {'完全信息下，若实际出价显著低于100%，说明存在策略性保留；若接近100%，验证了伯川德竞争' if info_type == 'complete' else '不完全信息下，若实际出价显著高于83.3%，可能存在过度自信或赢家诅咒；若低于83.3%，则过于保守'}
-    - 出价标准差 **{std_ratio:.2%}** 反映了组间策略分化程度
+    - 理论预测均衡出价应为估值的83.3%（6组竞争，每组视为一个竞拍主体，n=6）
+    - 完全信息阶段中标价接近估值（93.47%），平均出价仅54%（过度竞争挤压利润）
+    - 不完全信息阶段出价分化显著（从试探性的个位数到赢家诅咒的 150% 不等）
     - 真人行为系统性地偏离理论最优，这正是行为经济学的研究空间
     """)
 
@@ -868,23 +810,6 @@ for g in TOTAL_PROFITS.keys():
 
 df_total = pd.DataFrame(df_total)
 st.dataframe(df_total, hide_index=True, use_container_width=True)
-
-# 新增：总收益趋势图
-st.subheader("各轮次利润趋势")
-fig3, ax3 = plt.subplots(figsize=(12, 5))
-rounds = ['完全信息-R1', '完全信息-R2', '完全信息-R3', '不完全信息-R1', '不完全信息-R2']
-for g in TOTAL_PROFITS.keys():
-    profits = [TOTAL_PROFITS[g][r] for r in rounds]
-    ax3.plot(rounds, profits, marker='o', label=g, linewidth=2)
-
-ax3.set_ylabel('净利润')
-ax3.set_title('各小组各轮次利润变化趋势')
-ax3.legend()
-ax3.grid(True, alpha=0.3)
-ax3.axhline(y=0, color='black', linewidth=0.5)
-plt.xticks(rotation=45)
-plt.tight_layout()
-st.pyplot(fig3)
 
 st.bar_chart(df_total.set_index('小组')[['总计']])
 
