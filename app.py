@@ -761,8 +761,8 @@ with tab5:
                     "价值": current_values[i],
                     "出价": bids[i],
                     "出价/价值": ratio,
-                    "理论均衡": theory['equilibrium_ratio'],
-                    "偏离均衡": ratio - theory['equilibrium_ratio'],
+                    "理论均衡": theory['equilibrium_ratio'] if theory['equilibrium_ratio'] is not None else None,
+                    "偏离均衡": ratio - theory['equilibrium_ratio'] if theory['equilibrium_ratio'] is not None else None,
                 })
 
     df_comp = pd.DataFrame(df_compare)
