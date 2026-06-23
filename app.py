@@ -356,19 +356,27 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
 
 
 # ========== 理论分析模块 ==========
-def theoretical_analysis(values, n_bidders=6, info_type="complete"):
+def theoretical_analysis(values, n_bidders=6, info_type="complete", budget=None):
     """
-    理论分析：根据信息条件选择正确的理论框架
+    理论分析：根据信息条件和预算约束选择正确的理论框架
 
     关键区分：
-    - 完全信息 + 共同价值 → 伯川德竞争，利润趋零
-    - 不完全信息 → 借用IPV纳什均衡 b(v)=(n-1)/n·v 作为参照基准
+    - 完全信息 + 无预算约束 → 伯川德竞争，出价→价值，利润→0
+    - 完全信息 + 有预算约束 → 组合优化问题（背包），理性人选择最优组合
+    - 不完全信息 + 有预算约束 → 借用IPV纳什均衡 b(v)=(n-1)/n·v 作为参照基准
     """
     if info_type == "complete":
-        # 完全信息共同价值 → 伯川德竞争
-        equilibrium_ratio = 1.0  # 出价趋近价值
-        note = ('完全信息共同价值：真实价值是共同知识，'
-                '竞争趋向伯川德均衡，出价接近价值，理论利润趋近于零。')
+        if budget is None:
+            # 完全信息 + 无预算约束 → 伯川德竞争
+            equilibrium_ratio = 1.0
+            note = ('完全信息共同价值（无预算约束）：真实价值是共同知识，'
+                    '竞争趋向伯川德均衡，出价接近价值，理论利润趋近于零。')
+        else:
+            # 完全信息 + 有预算约束 → 组合优化（背包问题）
+            equilibrium_ratio = 1.0
+            note = ('完全信息共同价值（有预算约束）：真实价值已知，但预算限制选择，'
+                    '理性人需在预算内选择利润最高的物品组合，属于组合优化问题，'
+                    '不同于无约束时的伯川德竞争。')
     else:
         # 不完全信息 → 借用IPV纳什均衡作为参照
         equilibrium_ratio = (n_bidders - 1) / n_bidders
@@ -381,7 +389,7 @@ def theoretical_analysis(values, n_bidders=6, info_type="complete"):
     return {
         'equilibrium_ratio': equilibrium_ratio,
         'equilibrium_bids': equilibrium_bids,
-        'theoretical_profit_per_item': 0 if info_type == "complete" else None,
+        'theoretical_profit_per_item': 0 if info_type == "complete" and budget is None else None,
         'note': note
     }
 
@@ -728,7 +736,7 @@ with tab4:
 with tab5:
     st.header("📈 理论分析")
 
-    theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type)
+    theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type, budget=budget)
 
     st.subheader("标准拍卖理论预测")
     st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
@@ -799,9 +807,9 @@ with tab5:
 
     st.markdown(f"""
     **关键发现**：
-    - {'完全信息阶段：伯川德竞争预测出价应接近价值（100%），' if info_type == 'complete' else '不完全信息阶段：IPV纳什均衡预测出价应为价值的83.3%（6组竞争，n=6），'}
+    - {'完全信息R1（无预算约束）：伯川德竞争预测出价应接近价值（100%），' if info_type == 'complete' and budget is None else '完全信息R2/R3（有预算约束）：组合优化问题，理性人选择预算内最优组合，' if info_type == 'complete' else '不完全信息阶段：IPV纳什均衡预测出价应为价值的83.3%（6组竞争，n=6），'}
     - {'实际平均出价/价值为' if info_type == 'complete' else '实际平均出价/价值为'} **{avg_ratio:.2%}**
-    - {'完全信息下，若实际出价显著低于100%，说明存在策略性保留；若接近100%，验证了伯川德竞争' if info_type == 'complete' else '不完全信息下，若实际出价显著高于83.3%，可能存在过度自信或赢家诅咒；若低于83.3%，则过于保守'}
+    - {'完全信息下，若实际出价显著低于100%，说明存在策略性保留；若接近100%，验证了伯川德竞争' if info_type == 'complete' and budget is None else '有预算约束时，出价分化反映的是组合策略差异，而非单纯的价格竞争' if info_type == 'complete' else '不完全信息下，若实际出价显著高于83.3%，可能存在过度自信或赢家诅咒；若低于83.3%，则过于保守'}
     - 出价标准差 **{std_ratio:.2%}** 反映了组间策略分化程度
     - 真人行为系统性地偏离理论最优，这正是行为经济学的研究空间
     """)
