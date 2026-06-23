@@ -813,7 +813,7 @@ with tab5:
 
     st.pyplot(fig)
 
-    # 新增：箱线图展示组间差异
+    # 新增：箱线图展示组间差异（修复空数组bug）
     st.subheader("出价分布箱线图")
     fig2, ax2 = plt.subplots(figsize=(10, 5))
     group_ratios = []
@@ -821,7 +821,7 @@ with tab5:
     for g in current_data.keys():
         bids = np.array(current_data[g])
         valid = bids > 0
-        if np.any(valid):
+        if np.any(valid):  # 修复：只添加有有效出价的小组
             ratios = bids[valid] / np.array(current_values)[valid]
             group_ratios.append(ratios)
             group_labels.append(g)
@@ -837,6 +837,8 @@ with tab5:
         plt.xticks(rotation=45)
         plt.tight_layout()
         st.pyplot(fig2)
+    else:
+        st.info("所有小组均无有效出价，无法绘制箱线图")
 
     st.markdown(f"""
     **关键发现**：
