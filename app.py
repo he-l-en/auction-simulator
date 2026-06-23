@@ -225,20 +225,22 @@ def rational_baseline(values, n_bidders=6, budget=1500):
     # 按利润比率排序的索引
     sorted_indices = sorted(range(n), key=lambda i: profit_ratios[i], reverse=True)
 
+    # ========== 修复：DP循环使用sorted_indices ==========
     for idx in range(1, n + 1):
-        i = sorted_indices[idx - 1]
+        i = sorted_indices[idx - 1]  # 按利润比率排序后的物品索引
+        bid = int(base_bids[i])
+        profit = profits[i]
         for w in range(budget + 1):
-            bid = int(base_bids[i])
-            if bid <= w and profits[i] > 0:
-                if dp[idx-1][w - bid] + profits[i] > dp[idx-1][w]:
-                    dp[idx][w] = dp[idx-1][w - bid] + profits[i]
+            if bid <= w and profit > 0:
+                if dp[idx-1][w - bid] + profit > dp[idx-1][w]:
+                    dp[idx][w] = dp[idx-1][w - bid] + profit
                     keep[idx][w] = True
                 else:
                     dp[idx][w] = dp[idx-1][w]
             else:
                 dp[idx][w] = dp[idx-1][w]
 
-    # 回溯
+    # 回溯（同样使用sorted_indices映射）
     selected = []
     rational_bids = [0] * n
     w = budget
@@ -307,26 +309,34 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
     dp = [[0] * (budget + 1) for _ in range(n + 1)]
     keep = [[False] * (budget + 1) for _ in range(n + 1)]
 
-    for i in range(1, n + 1):
-        for w in range(budget + 1):
-            if estimated_win[i-1] <= w and expected_profits[i-1] > 0:
-                if dp[i-1][w - int(estimated_win[i-1])] + expected_profits[i-1] > dp[i-1][w]:
-                    dp[i][w] = dp[i-1][w - int(estimated_win[i-1])] + expected_profits[i-1]
-                    keep[i][w] = True
-                else:
-                    dp[i][w] = dp[i-1][w]
-            else:
-                dp[i][w] = dp[i-1][w]
+    # 按期望利润排序的索引（利润高的优先）
+    sorted_indices = sorted(range(n), key=lambda i: expected_profits[i], reverse=True)
 
-    # 回溯找出选中的物品
+    # ========== 修复：DP循环使用sorted_indices ==========
+    for idx in range(1, n + 1):
+        i = sorted_indices[idx - 1]  # 按期望利润排序后的物品索引
+        bid = int(estimated_win[i])
+        profit = expected_profits[i]
+        for w in range(budget + 1):
+            if bid <= w and profit > 0:
+                if dp[idx-1][w - bid] + profit > dp[idx-1][w]:
+                    dp[idx][w] = dp[idx-1][w - bid] + profit
+                    keep[idx][w] = True
+                else:
+                    dp[idx][w] = dp[idx-1][w]
+            else:
+                dp[idx][w] = dp[idx-1][w]
+
+    # 回溯找出选中的物品（同样使用sorted_indices映射）
     selected = []
     ai_bids = [0] * n
     w = budget
-    for i in range(n, 0, -1):
-        if keep[i][w]:
+    for idx in range(n, 0, -1):
+        if keep[idx][w]:
+            i = sorted_indices[idx - 1]
             selected.append(i)
-            ai_bids[i-1] = int(estimated_win[i-1])
-            w -= int(estimated_win[i-1])
+            ai_bids[i] = int(estimated_win[i])
+            w -= int(estimated_win[i])
 
     selected.reverse()
     total_spent = sum(ai_bids)
@@ -369,10 +379,11 @@ experiment_type = st.sidebar.radio(
     ["完全信息（估值公开）", "不完全信息（位置互换）"]
 )
 
-round_num = st.sidebar.radio(
-    "选择轮次",
-    ["第一轮", "第二轮", "第三轮（仅完全信息）"]
-)
+# ========== 修复：动态控制轮次选项 ==========
+round_options = ["第一轮", "第二轮"]
+if experiment_type == "完全信息（估值公开）":
+    round_options.append("第三轮（仅完全信息）")
+round_num = st.sidebar.radio("选择轮次", round_options)
 
 # 根据选择加载数据
 if experiment_type == "完全信息（估值公开）":
@@ -407,9 +418,6 @@ else:
         budget = 1500
         info_text = "不完全信息 | 第二轮 | 预算1500"
         info_type = "incomplete"
-    else:
-        st.sidebar.error("不完全信息没有第三轮数据")
-        st.stop()
 
 st.sidebar.info(info_text)
 
@@ -447,26 +455,39 @@ with tab1:
     with col2:
         st.subheader("赢得物品数")
         chart_df2 = df.set_index('小组')[['赢得物品']]
-        chart_df2['数量'] = chart_df2['赢得物品'].str.extract('(\d+)').astype(int)
+        chart_df2['数量'] = chart_df2['赢得物品'].str.extract(r'(\d+)').astype(int)
         st.bar_chart(chart_df2[['数量']])
 
     st.subheader("逐物品拍卖明细")
     df_items = []
+    curse_count = 0
     for i in range(12):
         if winners[i] >= 0:
             winner = groups[winners[i]]
             win_bid = wb[i]
+            profit = current_values[i] - win_bid
+            is_curse = win_bid > current_values[i]
+            if is_curse:
+                curse_count += 1
         else:
             winner = "流拍"
             win_bid = 0
+            profit = 0
+            is_curse = False
 
         df_items.append({
             "物品": i + 1,
             "估值": current_values[i],
             "成交价": win_bid,
             "获胜者": winner,
-            "利润": current_values[i] - win_bid if winners[i] >= 0 else 0,
+            "利润": profit,
+            "赢家诅咒": "⚠️ 出价>估值" if is_curse else ("✅" if winners[i] >= 0 else "—"),
         })
+
+    if curse_count > 0:
+        st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值）")
+    else:
+        st.success("本轮未出现赢家诅咒")
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
@@ -622,7 +643,7 @@ with tab4:
         st.metric("均衡出价比例", f"{rational_result['equilibrium_ratio']:.1%}")
     with col2:
         avg_item_profit = rational_result['profit'] / len(rational_result['selected']) if rational_result['selected'] else 0
-        st.metric("理论单件利润", f"{avg_item_profit:.0f} ")
+        st.metric("理论单件利润", f"{avg_item_profit:.0f} 币")
     with col3:
         st.metric("理论总利润", f"{rational_result['profit']}")
 
@@ -725,6 +746,7 @@ with tab5:
               linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     ax.axhline(y=1.0, color='orange', linestyle=':',
               linewidth=1.5, label='出价等于估值 (100%)')
+    ax.fill_between(range(1, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>估值）')
 
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
