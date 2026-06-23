@@ -329,7 +329,7 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
     }
 
 
-# ========== 理论分析模块 ==========
+# ========== 理论分析模块（按正确理论区分） ==========
 def theoretical_analysis(values, n_bidders=6, info_type="complete"):
     """
     理论分析：根据信息条件选择正确的理论框架
@@ -738,10 +738,11 @@ with tab4:
     """)
 
 
-# ========== Tab 5: 理论分析 ==========
+# ========== Tab 5: 理论分析（按正确理论区分） ==========
 with tab5:
     st.header("📈 理论分析")
 
+    # 按正确理论区分：完全信息→伯川德竞争，不完全信息→纳什均衡
     theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type)
 
     st.subheader("标准拍卖理论预测")
@@ -827,9 +828,7 @@ with tab5:
             group_labels.append(g)
 
     if group_ratios:
-        # 修复：使用 tick_labels 替代 labels（matplotlib 3.9+）
         bp = ax2.boxplot(group_ratios, patch_artist=True)
-        # 手动设置x轴标签
         ax2.set_xticks(range(1, len(group_labels) + 1))
         ax2.set_xticklabels(group_labels)
         for patch in bp['boxes']:
