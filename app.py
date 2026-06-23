@@ -791,7 +791,7 @@ with tab5:
 
     if theory['equilibrium_ratio'] is not None:
         ax.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--',
-    
+                  linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     else:
         ax.text(6, 0.5, '有预算约束时无简单理论均衡\n参见"完全理性人基准"Tab',
                ha='center', fontsize=12, color='red',
