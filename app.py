@@ -440,6 +440,7 @@ with tab1:
             "总支出": r['spent'],
             "总价值": r['value'],
             "净利润": r['profit'],
+            "盈亏状态": "盈利" if r['profit'] > 0 else ("亏损" if r['profit'] < 0 else "持平"),
             "预算状态": "✅" if not r['over_budget'] else "❌超支",
         })
 
@@ -555,7 +556,8 @@ with tab2:
             st.metric("总价值", f"{you['value']}")
         with col4:
             st.metric("净利润", f"{you['profit']}",
-                     delta="盈利" if you['profit'] > 0 else "亏损")
+                     delta="盈利" if you['profit'] > 0 else "亏损",
+                     delta_color="normal")
 
         df_sim = []
         for i in range(12):
@@ -606,7 +608,9 @@ with tab3:
     with col2:
         st.metric("预计支出", f"{ai_result['spent']}")
     with col3:
-        st.metric("真实利润", f"{ai_result['profit']}")
+        st.metric("真实利润", f"{ai_result['profit']}",
+                 delta="盈利" if ai_result['profit'] > 0 else ("亏损" if ai_result['profit'] < 0 else "持平"),
+                 delta_color="normal")
 
     st.write(f"**选中物品编号**: {ai_result['selected']}")
 
@@ -625,7 +629,9 @@ with tab3:
     with col2:
         st.metric("实际支出", f"{ai_actual['spent']}")
     with col3:
-        st.metric("实际利润", f"{ai_actual['profit']}")
+        st.metric("实际利润", f"{ai_actual['profit']}",
+                 delta="盈利" if ai_actual['profit'] > 0 else ("亏损" if ai_actual['profit'] < 0 else "持平"),
+                 delta_color="normal")
 
     st.info("""
     **AI策略说明**：
@@ -686,7 +692,10 @@ with tab4:
     with col2:
         st.metric("真人平均利润", f"{avg_real_profit:.1f}")
     with col3:
-        st.metric("差距", f"{rational_result['profit'] - avg_real_profit:.1f}")
+        gap = rational_result['profit'] - avg_real_profit
+        st.metric("差距", f"{gap:.1f}",
+                 delta="理性人更高" if gap > 0 else "真人更高",
+                 delta_color="normal")
 
     st.info("""
     **理论说明**：
@@ -739,7 +748,10 @@ with tab5:
     with col2:
         st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
     with col3:
-        st.metric("偏离程度", f"{avg_ratio - theory['equilibrium_ratio']:.2%}")
+        dev = avg_ratio - theory['equilibrium_ratio']
+        st.metric("偏离程度", f"{dev:.2%}",
+                 delta="高于均衡" if dev > 0 else "低于均衡",
+                 delta_color="normal")
 
     st.dataframe(df_comp, hide_index=True, use_container_width=True)
 
