@@ -741,7 +741,10 @@ with tab5:
     theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type, budget=budget)
 
     st.subheader("标准拍卖理论预测")
-    st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
+    if theory['equilibrium_ratio'] is not None:
+        st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
+    else:
+        st.write("**均衡出价比例**： 有预算约束时无简单闭式解")
     st.write(f"**理论说明**: {theory['note']}")
 
     st.subheader("实际 vs 理论出价对比")
@@ -771,7 +774,10 @@ with tab5:
     with col1:
         st.metric("平均出价/价值", f"{avg_ratio:.2%}")
     with col2:
-        st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
+        if theory['equilibrium_ratio'] is not None:
+            st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
+        else:
+            st.metric("理论均衡", "N/A (有预算约束)")
     with col3:
         dev = avg_ratio - theory['equilibrium_ratio']
         st.metric("偏离程度", f"{dev:.2%}",
