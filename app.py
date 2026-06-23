@@ -762,6 +762,8 @@ with tab5:
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
     ax.set_title('各组出价偏离理论均衡程度')
+    ax.set_xticks(range(1, 13))  # 强制显示所有物品编号1-12
+    ax.set_xticklabels(range(1, 13))
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 1.6)
