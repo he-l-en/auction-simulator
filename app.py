@@ -475,19 +475,24 @@ with tab1:
             profit = 0
             is_curse = False
 
-        df_items.append({
+        item_data = {
             "物品": i + 1,
             "估值": current_values[i],
             "成交价": win_bid,
             "获胜者": winner,
             "利润": profit,
-            "赢家诅咒": "⚠️ 出价>估值" if is_curse else ("✅" if winners[i] >= 0 else "—"),
-        })
+        }
+        # 仅在不完全信息阶段显示赢家诅咒
+        if info_type == "incomplete":
+            item_data["赢家诅咒"] = "⚠️ 出价>估值" if is_curse else ("✅" if winners[i] >= 0 else "—")
+        df_items.append(item_data)
 
-    if curse_count > 0:
-        st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值）")
-    else:
-        st.success("本轮未出现赢家诅咒")
+    # 仅在不完全信息阶段显示赢家诅咒提示
+    if info_type == "incomplete":
+        if curse_count > 0:
+            st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值）")
+        else:
+            st.success("本轮未出现赢家诅咒")
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
@@ -746,7 +751,8 @@ with tab5:
               linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     ax.axhline(y=1.0, color='orange', linestyle=':',
               linewidth=1.5, label='出价等于估值 (100%)')
-    ax.fill_between(range(1, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>估值）')
+    if info_type == "incomplete":
+        ax.fill_between(range(1, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>估值）')
 
     ax.set_xlabel('物品编号')
     ax.set_ylabel('出价 / 估值')
