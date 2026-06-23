@@ -356,43 +356,18 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
 
 
 # ========== 理论分析模块 ==========
-def theoretical_analysis(values, n_bidders=6, info_type="complete", budget=None):
+def theoretical_analysis(values, n_bidders=6):
     """
-    理论分析：根据信息条件和预算约束选择正确的理论框架
-
-    关键区分：
-    - 完全信息 + 无预算约束 → 伯川德竞争，出价→价值，利润→0
-    - 完全信息 + 有预算约束 → 多物品拍卖均衡，单件出价<价值，无简单闭式解
-    - 不完全信息 → 借用IPV纳什均衡 b(v)=(n-1)/n·v 作为参照基准
+    理论分析：基于标准拍卖理论的预测
     """
-    if info_type == "complete":
-        if budget is None:
-            # 完全信息 + 无预算约束 → 伯川德竞争
-            equilibrium_ratio = 1.0
-            note = ('完全信息共同价值（无预算约束）：真实价值是共同知识，'
-                    '竞争趋向伯川德均衡，出价接近价值，理论利润趋近于零。')
-        else:
-            # 完全信息 + 有预算约束 → 多物品拍卖均衡
-            # 理性人选择最优组合，单件出价低于价值（竞争减少+策略性保留）
-            # 无简单闭式解，用理性人基准（背包）作为实际预测
-            equilibrium_ratio = None
-            note = ('完全信息共同价值（有预算约束）：多物品同时拍卖均衡，'
-                    '理性人在预算内选择最优组合，单件出价低于价值，'
-                    '无简单闭式解。请参见"完全理性人基准"Tab获取具体预测。')
-    else:
-        # 不完全信息 → 借用IPV纳什均衡作为参照
-        equilibrium_ratio = (n_bidders - 1) / n_bidders
-        note = ('不完全信息：真实价值未知，竞拍者需基于信号估计。'
-                '此处借用IPV模型的纳什均衡 b(v)=(n-1)/n·v 作为参照基准，'
-                '实际共同价值拍卖的均衡更复杂（需考虑信号关联和赢者诅咒）。')
-
-    equilibrium_bids = [v * equilibrium_ratio for v in values] if equilibrium_ratio is not None else None
+    equilibrium_ratio = (n_bidders - 1) / n_bidders
+    equilibrium_bids = [v * equilibrium_ratio for v in values]
 
     return {
         'equilibrium_ratio': equilibrium_ratio,
         'equilibrium_bids': equilibrium_bids,
-        'theoretical_profit_per_item': 0 if info_type == "complete" and budget is None else None,
-        'note': note
+        'theoretical_profit_per_item': 0,
+        'note': '标准理论假设估值连续分布、对称风险中性竞拍者，本实验为离散固定值，仅供参考'
     }
 
 
@@ -401,17 +376,17 @@ st.sidebar.header("📋 实验条件")
 
 experiment_type = st.sidebar.radio(
     "选择实验条件",
-    ["完全信息（价值公开）", "不完全信息（位置互换）"]
+    ["完全信息（估值公开）", "不完全信息（位置互换）"]
 )
 
 # ========== 修复：动态控制轮次选项 ==========
 round_options = ["第一轮", "第二轮"]
-if experiment_type == "完全信息（价值公开）":
+if experiment_type == "完全信息（估值公开）":
     round_options.append("第三轮（仅完全信息）")
 round_num = st.sidebar.radio("选择轮次", round_options)
 
 # 根据选择加载数据
-if experiment_type == "完全信息（价值公开）":
+if experiment_type == "完全信息（估值公开）":
     if round_num == "第一轮":
         current_data = ROUND1_FULL
         current_values = VALUES_FULL
@@ -503,7 +478,7 @@ with tab1:
 
         item_data = {
             "物品": i + 1,
-            "价值": current_values[i],
+            "估值": current_values[i],
             "成交价": win_bid,
             "获胜者": winner,
             "利润": profit,
@@ -511,9 +486,9 @@ with tab1:
         # 仅在不完全信息阶段显示赢家诅咒
         if info_type == "incomplete":
             if is_curse:
-                item_data["成交性质"] = "⚠️ 赢家诅咒（出价>价值）"
+                item_data["成交性质"] = "⚠️ 赢家诅咒（出价>估值）"
             elif winners[i] >= 0:
-                item_data["成交性质"] = "正常成交（出价≤价值）"
+                item_data["成交性质"] = "正常成交（出价≤估值）"
             else:
                 item_data["成交性质"] = "流拍"
         df_items.append(item_data)
@@ -521,9 +496,9 @@ with tab1:
     # 仅在不完全信息阶段显示赢家诅咒提示
     if info_type == "incomplete":
         if curse_count > 0:
-            st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于价值，中标即亏损）")
+            st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值，中标即亏损）")
         else:
-            st.info("本轮未出现赢家诅咒（所有成交价均≤价值）")
+            st.info("本轮未出现赢家诅咒（所有成交价均≤估值）")
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
@@ -552,7 +527,7 @@ with tab2:
     for i in range(12):
         with cols[i % 4]:
             bid = st.number_input(
-                f"物品{i+1}(价值{current_values[i]})",
+                f"物品{i+1}(估值{current_values[i]})",
                 0, 1000, 0,
                 key=f"user_bid_{i}"
             )
@@ -589,7 +564,7 @@ with tab2:
             winner = sim_groups[sim_winners[i]] if sim_winners[i] >= 0 else "流拍"
             df_sim.append({
                 "物品": i + 1,
-                "价值": current_values[i],
+                "估值": current_values[i],
                 "你的出价": user_bids[i],
                 "成交价": sim_wb[i],
                 "获胜者": winner,
@@ -617,7 +592,7 @@ with tab3:
     for i in range(12):
         df_ai.append({
             "物品": i + 1,
-            "价值": current_values[i],
+            "估值": current_values[i],
             "历史最高": ai_result['hist_max'][i],
             "估计获胜价": ai_result['estimated_win'][i],
             "AI出价": ai_result['bids'][i] if ai_result['bids'][i] > 0 else "放弃",
@@ -692,7 +667,7 @@ with tab4:
     for i in range(12):
         df_rational.append({
             "物品": i + 1,
-            "价值": current_values[i],
+            "估值": current_values[i],
             "理论均衡出价": rational_result['base_bids'][i],
             "是否选中": "✅" if rational_result['bids'][i] > 0 else "❌",
             "实际出价": rational_result['bids'][i] if rational_result['bids'][i] > 0 else "放弃",
@@ -728,7 +703,7 @@ with tab4:
     - 标准假设：风险中性、对称竞拍者、**独立私有价值（IPV）**
     - 均衡出价 = (n-1)/n × 估值
     - 本实验为**共同价值**设定（所有人对同一物品估价相同），不同于 IPV
-    - 完全信息时，共同价值趋向伯川德竞争（出价接近价值，利润趋零）
+    - 完全信息时，共同价值趋向伯川德竞争（出价接近估值，利润趋零）
     - 不完全信息时，共同价值引发赢家诅咒，理性人反而应压低出价
     - 因此本基准仅供参考方向，不要求预测精确数字
     """)
@@ -738,13 +713,10 @@ with tab4:
 with tab5:
     st.header("📈 理论分析")
 
-    theory = theoretical_analysis(current_values, n_bidders=6, info_type=info_type, budget=budget)
+    theory = theoretical_analysis(current_values, n_bidders=6)
 
     st.subheader("标准拍卖理论预测")
-    if theory['equilibrium_ratio'] is not None:
-        st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
-    else:
-        st.write("**均衡出价比例**： 有预算约束时无简单闭式解")
+    st.write(f"**均衡出价比例**: {theory['equilibrium_ratio']:.1%}")
     st.write(f"**理论说明**: {theory['note']}")
 
     st.subheader("实际 vs 理论出价对比")
@@ -758,26 +730,23 @@ with tab5:
                 df_compare.append({
                     "小组": g,
                     "物品": i + 1,
-                    "价值": current_values[i],
+                    "估值": current_values[i],
                     "出价": bids[i],
-                    "出价/价值": ratio,
-                    "理论均衡": theory['equilibrium_ratio'] if theory['equilibrium_ratio'] is not None else None,
-                    "偏离均衡": ratio - theory['equilibrium_ratio'] if theory['equilibrium_ratio'] is not None else None,
+                    "出价/估值": ratio,
+                    "理论均衡": theory['equilibrium_ratio'],
+                    "偏离均衡": ratio - theory['equilibrium_ratio'],
                 })
 
     df_comp = pd.DataFrame(df_compare)
 
-    avg_ratio = df_comp['出价/价值'].mean()
-    std_ratio = df_comp['出价/价值'].std()
+    avg_ratio = df_comp['出价/估值'].mean()
+    std_ratio = df_comp['出价/估值'].std()
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("平均出价/价值", f"{avg_ratio:.2%}")
+        st.metric("平均出价/估值", f"{avg_ratio:.2%}")
     with col2:
-        if theory['equilibrium_ratio'] is not None:
-            st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
-        else:
-            st.metric("理论均衡", "N/A (有预算约束)")
+        st.metric("理论均衡", f"{theory['equilibrium_ratio']:.2%}")
     with col3:
         dev = avg_ratio - theory['equilibrium_ratio']
         st.metric("偏离程度", f"{dev:.2%}",
@@ -792,24 +761,18 @@ with tab5:
     for g in current_data.keys():
         group_data = df_comp[df_comp['小组'] == g]
         if not group_data.empty:
-            ax.scatter(group_data['物品'], group_data['出价/价值'],
+            ax.scatter(group_data['物品'], group_data['出价/估值'],
                       label=g, alpha=0.7, s=60)
 
-    if theory['equilibrium_ratio'] is not None:
-        ax.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--',
-                  linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
-    else:
-        ax.text(6, 0.5, '有预算约束时无简单理论均衡\n参见"完全理性人基准"Tab',
-               ha='center', fontsize=12, color='red',
-               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-
+    ax.axhline(y=theory['equilibrium_ratio'], color='red', linestyle='--',
+              linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     ax.axhline(y=1.0, color='orange', linestyle=':',
-              linewidth=1.5, label='出价等于价值 (100%)')
+              linewidth=1.5, label='出价等于估值 (100%)')
     if info_type == "incomplete":
-        ax.fill_between(range(1, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>价值）')
+        ax.fill_between(range(1, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>估值）')
 
     ax.set_xlabel('物品编号')
-    ax.set_ylabel('出价 / 价值')
+    ax.set_ylabel('出价 / 估值')
     ax.set_title('各组出价偏离理论均衡程度')
     ax.set_xticks(range(1, 13))  # 强制显示所有物品编号1-12
     ax.set_xticklabels(range(1, 13))
@@ -819,12 +782,11 @@ with tab5:
 
     st.pyplot(fig)
 
-    st.markdown(f"""
+    st.markdown("""
     **关键发现**：
-    - {'完全信息R1（无预算约束）：伯川德竞争预测出价应接近价值（100%），利润趋零' if info_type == 'complete' and budget is None else '完全信息R2/R3（有预算约束）：多物品拍卖均衡，无简单闭式解，理性人基准见"完全理性人基准"Tab' if info_type == 'complete' else '不完全信息阶段：IPV纳什均衡预测出价应为价值的83.3%（6组竞争，n=6），'}
-    - {'实际平均出价/价值为' if info_type == 'complete' else '实际平均出价/价值为'} **{avg_ratio:.2%}**
-    - {'完全信息下，若实际出价显著低于100%，说明存在策略性保留；若接近100%，验证了伯川德竞争' if info_type == 'complete' and budget is None else '有预算约束时，出价分化反映的是组合策略差异，单件均衡无简单解' if info_type == 'complete' else '不完全信息下，若实际出价显著高于83.3%，可能存在过度自信或赢家诅咒；若低于83.3%，则过于保守'}
-    - 出价标准差 **{std_ratio:.2%}** 反映了组间策略分化程度
+    - 理论预测均衡出价应为估值的83.3%（6组竞争，每组视为一个竞拍主体，n=6）
+    - 完全信息阶段中标价接近估值（93.47%），平均出价仅54%（过度竞争挤压利润）
+    - 不完全信息阶段出价分化显著（从试探性的个位数到赢家诅咒的 150% 不等）
     - 真人行为系统性地偏离理论最优，这正是行为经济学的研究空间
     """)
 
