@@ -484,15 +484,20 @@ with tab1:
         }
         # 仅在不完全信息阶段显示赢家诅咒
         if info_type == "incomplete":
-            item_data["赢家诅咒"] = "⚠️ 出价>估值" if is_curse else ("✅" if winners[i] >= 0 else "—")
+            if is_curse:
+                item_data["成交性质"] = "⚠️ 赢家诅咒（出价>估值）"
+            elif winners[i] >= 0:
+                item_data["成交性质"] = "正常成交（出价≤估值）"
+            else:
+                item_data["成交性质"] = "流拍"
         df_items.append(item_data)
 
     # 仅在不完全信息阶段显示赢家诅咒提示
     if info_type == "incomplete":
         if curse_count > 0:
-            st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值）")
+            st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于估值，中标即亏损）")
         else:
-            st.success("本轮未出现赢家诅咒")
+            st.info("本轮未出现赢家诅咒（所有成交价均≤估值）")
 
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
