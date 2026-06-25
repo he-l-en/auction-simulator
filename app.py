@@ -725,7 +725,7 @@ with tab4:
         st.metric("均衡出价比例", f"{rational_result['equilibrium_ratio']:.1%}")
     with col2:
         avg_item_profit = rational_result['profit'] / len(rational_result['selected']) if rational_result['selected'] else 0
-        st.metric("理论单件利润", f"{avg_item_profit:.0f} 币")
+        st.metric("理论单件利润", f"{avg_item_profit:.0f} ")
     with col3:
         st.metric("理论总利润", f"{rational_result['profit']}")
 
