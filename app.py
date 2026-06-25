@@ -6,9 +6,8 @@ import matplotlib
 from matplotlib import font_manager
 import os
 
-# ========== 中文字体配置（必须在所有绘图之前）==========
+# ========== 中文字体配置 ==========
 def setup_chinese_font():
-    """配置中文字体，支持本地和云端部署"""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     font_candidates = [
         os.path.join(base_dir, 'NotoSansCJKsc-Regular.otf'),
@@ -16,7 +15,6 @@ def setup_chinese_font():
         os.path.join(base_dir, 'fonts', 'SimHei.ttf'),
         os.path.join(base_dir, 'SimHei.ttf'),
     ]
-
     for font_path in font_candidates:
         if os.path.exists(font_path):
             font_manager.fontManager.addfont(font_path)
@@ -25,11 +23,10 @@ def setup_chinese_font():
             plt.rcParams['axes.unicode_minus'] = False
             return prop.get_name()
 
-    chinese_fonts = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Zen Hei', 
+    chinese_fonts = ['SimHei', 'Microsoft YaHei', 'WenQuanYi Zen Hei',
                      'Noto Sans CJK SC', 'PingFang SC', 'Heiti SC',
                      'Source Han Sans SC', 'AR PL UMing CN']
     available_fonts = [f.name for f in font_manager.fontManager.ttflist]
-
     for font_name in chinese_fonts:
         if font_name in available_fonts:
             plt.rcParams['font.sans-serif'] = [font_name] + plt.rcParams['font.sans-serif']
@@ -48,7 +45,6 @@ def setup_chinese_font():
             plt.rcParams['font.family'] = prop.get_name()
             plt.rcParams['axes.unicode_minus'] = False
             return prop.get_name()
-
     return None
 
 font_used = setup_chinese_font()
@@ -132,14 +128,11 @@ def run_auction(bids_dict, values, budget=None):
     groups = list(bids_dict.keys())
     n_items = len(values)
     matrix = np.array([bids_dict[g] for g in groups])
-
     winners = []
     winning_bids = []
-
     for item_idx in range(n_items):
         item_bids = matrix[:, item_idx]
         valid_mask = item_bids > 0
-
         if not np.any(valid_mask):
             winners.append(-1)
             winning_bids.append(0)
@@ -151,10 +144,8 @@ def run_auction(bids_dict, values, budget=None):
             winner_idx = np.random.choice(max_indices)
             winners.append(winner_idx)
             winning_bids.append(max_bid)
-
     winners = np.array(winners)
     winning_bids = np.array(winning_bids)
-
     results = {}
     for i, g in enumerate(groups):
         won_items = np.where(winners == i)[0]
@@ -162,11 +153,9 @@ def run_auction(bids_dict, values, budget=None):
         spent = sum(winning_bids[j] for j in won_items)
         total_value = sum(values[j] for j in won_items)
         profit = total_value - spent
-
         over_budget = False
         if budget is not None and spent > budget:
             over_budget = True
-
         results[g] = {
             'items': [int(j) + 1 for j in won_items],
             'num': int(num_won),
@@ -176,7 +165,6 @@ def run_auction(bids_dict, values, budget=None):
             'over_budget': over_budget,
             'budget': budget,
         }
-
     return results, winners, winning_bids, groups
 
 
@@ -186,12 +174,10 @@ def rational_baseline(values, n_bidders=6, budget=1500):
     base_bids = [v * equilibrium_ratio for v in values]
     profits = [v - b for v, b in zip(values, base_bids)]
     profit_ratios = [p / v for p, v in zip(profits, values)]
-
     n = len(values)
     dp = [[0] * (budget + 1) for _ in range(n + 1)]
     keep = [[False] * (budget + 1) for _ in range(n + 1)]
     sorted_indices = sorted(range(n), key=lambda i: profit_ratios[i], reverse=True)
-
     for idx in range(1, n + 1):
         i = sorted_indices[idx - 1]
         bid = int(base_bids[i])
@@ -205,7 +191,6 @@ def rational_baseline(values, n_bidders=6, budget=1500):
                     dp[idx][w] = dp[idx-1][w]
             else:
                 dp[idx][w] = dp[idx-1][w]
-
     selected = []
     rational_bids = [0] * n
     w = budget
@@ -215,11 +200,9 @@ def rational_baseline(values, n_bidders=6, budget=1500):
             selected.append(i + 1)
             rational_bids[i] = int(base_bids[i])
             w -= int(base_bids[i])
-
     selected.reverse()
     total_spent = sum(rational_bids)
     true_profit = sum(values[i-1] - rational_bids[i-1] for i in selected)
-
     return {
         'equilibrium_ratio': equilibrium_ratio,
         'bids': rational_bids,
@@ -233,7 +216,6 @@ def rational_baseline(values, n_bidders=6, budget=1500):
 # ========== AI智能策略模块 ==========
 def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, info_type="complete"):
     hist_matrix = np.array([history_dict[g] for g in history_dict.keys()])
-
     if info_type == "complete":
         estimated_values = np.array(values)
     else:
@@ -244,17 +226,14 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
         estimated_values = np.maximum(estimated_values, hist_min)
         hist_max_limit = np.max(hist_matrix, axis=0) * 1.5
         estimated_values = np.minimum(estimated_values, hist_max_limit)
-
     hist_max = np.max(hist_matrix, axis=0)
     estimated_win = hist_max * risk_aversion + 1
     estimated_win = np.minimum(estimated_win, estimated_values)
     expected_profits = estimated_values - estimated_win
-
     n = len(values)
     dp = [[0] * (budget + 1) for _ in range(n + 1)]
     keep = [[False] * (budget + 1) for _ in range(n + 1)]
     sorted_indices = sorted(range(n), key=lambda i: expected_profits[i], reverse=True)
-
     for idx in range(1, n + 1):
         i = sorted_indices[idx - 1]
         bid = int(estimated_win[i])
@@ -268,7 +247,6 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
                     dp[idx][w] = dp[idx-1][w]
             else:
                 dp[idx][w] = dp[idx-1][w]
-
     selected = []
     ai_bids = [0] * n
     w = budget
@@ -278,11 +256,9 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
             selected.append(i)
             ai_bids[i] = int(estimated_win[i])
             w -= int(estimated_win[i])
-
     selected.reverse()
     total_spent = sum(ai_bids)
     true_profit = sum(values[i-1] - ai_bids[i-1] for i in selected)
-
     return {
         'bids': ai_bids,
         'selected': selected,
@@ -298,7 +274,6 @@ def ai_knapsack_strategy(values, history_dict, budget=1500, risk_aversion=1.0, i
 def theoretical_analysis(values, n_bidders=6):
     equilibrium_ratio = (n_bidders - 1) / n_bidders
     equilibrium_bids = [v * equilibrium_ratio for v in values]
-
     return {
         'equilibrium_ratio': equilibrium_ratio,
         'equilibrium_bids': equilibrium_bids,
@@ -355,19 +330,20 @@ else:
 
 st.sidebar.info(info_text)
 
-# ========== 主界面 ==========
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📊 实验结果", "🔥 出价热力图", "🏆 模拟竞拍", "🤖 AI智能策略", 
+# ========== 主界面：5个Tab ==========
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 实验结果", "🏆 模拟竞拍", "🤖 AI智能策略",
     "🧮 完全理性人基准", "📈 理论分析"
 ])
 
 
-# ========== Tab 1: 实验结果（保留原有功能 + 增强可视化）==========
+# ========== Tab 1: 实验结果（融合热力图）==========
 with tab1:
     st.header(f"实验结果：{info_text}")
 
     results, winners, wb, groups = run_auction(current_data, current_values, budget)
 
+    # ---- 原有表格 ----
     df_results = []
     for g in groups:
         r = results[g]
@@ -381,22 +357,141 @@ with tab1:
             "盈亏状态": "盈利" if r['profit'] > 0 else ("亏损" if r['profit'] < 0 else "持平"),
             "预算状态": "✅" if not r['over_budget'] else "❌超支",
         })
-
     df = pd.DataFrame(df_results)
     st.dataframe(df, hide_index=True, use_container_width=True)
 
+    # ---- 原有柱状图 ----
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("净利润对比")
         chart_df = df.set_index('小组')[['净利润']]
         st.bar_chart(chart_df)
-
     with col2:
         st.subheader("赢得物品数")
         chart_df2 = df.set_index('小组')[['赢得物品']]
         chart_df2['数量'] = chart_df2['赢得物品'].str.extract(r'(\d+)').astype(int)
         st.bar_chart(chart_df2[['数量']])
 
+    # ========== 新增：出价热力图区域 ==========
+    st.markdown("---")
+    st.subheader("🔥 出价策略热力图")
+    st.caption("通过颜色深浅直观展示各组出价策略的空间分布")
+
+    data_matrix = np.array([current_data[g] for g in current_data.keys()])
+    group_names = list(current_data.keys())
+    n_groups = len(group_names)
+
+    col_h1, col_h2 = st.columns(2)
+
+    with col_h1:
+        st.markdown("**出价金额热力图**")
+        fig1, ax1 = plt.subplots(figsize=(10, 4.5))
+        im1 = ax1.imshow(data_matrix, cmap='RdYlGn_r', aspect='auto', vmin=0, vmax=500)
+        ax1.set_xticks(range(12))
+        ax1.set_xticklabels([f'{i+1}' for i in range(12)])
+        ax1.set_yticks(range(n_groups))
+        ax1.set_yticklabels(group_names)
+        ax1.set_xlabel('物品编号')
+        for i in range(n_groups):
+            for j in range(12):
+                if data_matrix[i,j] > 0:
+                    ax1.text(j, i, int(data_matrix[i,j]), ha="center", va="center",
+                            color="white" if data_matrix[i,j] < 300 else "black", fontsize=8)
+        plt.colorbar(im1, ax=ax1, label='出价金额', fraction=0.046)
+        plt.tight_layout()
+        st.pyplot(fig1)
+
+    with col_h2:
+        st.markdown("**出价/估值比例热力图**")
+        ratio_matrix = np.zeros_like(data_matrix, dtype=float)
+        for i in range(n_groups):
+            for j in range(12):
+                if data_matrix[i,j] > 0:
+                    ratio_matrix[i,j] = data_matrix[i,j] / current_values[j]
+                else:
+                    ratio_matrix[i,j] = np.nan
+        fig2, ax2 = plt.subplots(figsize=(10, 4.5))
+        ratio_masked = np.ma.masked_invalid(ratio_matrix)
+        im2 = ax2.imshow(ratio_masked, cmap='RdYlBu_r', aspect='auto', vmin=0, vmax=1.2)
+        ax2.set_xticks(range(12))
+        ax2.set_xticklabels([f'{i+1}' for i in range(12)])
+        ax2.set_yticks(range(n_groups))
+        ax2.set_yticklabels(group_names)
+        ax2.set_xlabel('物品编号')
+        for i in range(n_groups):
+            for j in range(12):
+                if not np.isnan(ratio_matrix[i,j]):
+                    ax2.text(j, i, f'{ratio_matrix[i,j]:.2f}', ha="center", va="center",
+                            color="white" if ratio_matrix[i,j] < 0.7 else "black", fontsize=7)
+        plt.colorbar(im2, ax=ax2, label='出价/估值', fraction=0.046)
+        plt.tight_layout()
+        st.pyplot(fig2)
+
+    # ---- 利润热力图 ----
+    st.markdown("**利润矩阵热力图（仅中标物品）**")
+    profit_matrix = np.full((n_groups, 12), np.nan)
+    for i, g in enumerate(group_names):
+        for j in range(12):
+            if winners[j] == i:
+                profit_matrix[i, j] = current_values[j] - wb[j]
+    fig3, ax3 = plt.subplots(figsize=(12, 3.5))
+    profit_masked = np.ma.masked_invalid(profit_matrix)
+    im3 = ax3.imshow(profit_masked, cmap='RdYlGn', aspect='auto', vmin=-50, vmax=50)
+    ax3.set_xticks(range(12))
+    ax3.set_xticklabels([f'物品{i+1}' for i in range(12)])
+    ax3.set_yticks(range(n_groups))
+    ax3.set_yticklabels(group_names)
+    for i in range(n_groups):
+        for j in range(12):
+            if not np.isnan(profit_matrix[i,j]):
+                ax3.text(j, i, f'{profit_matrix[i,j]:.0f}', ha="center", va="center",
+                        color="black", fontsize=9, fontweight='bold')
+    plt.colorbar(im3, ax=ax3, label='利润', fraction=0.046)
+    plt.tight_layout()
+    st.pyplot(fig3)
+    st.caption("🟢 绿色=盈利 | 🔴 红色=亏损 | 空白=未中标")
+
+    # ---- 竞争强度条形图 ----
+    st.markdown("**各物品竞争强度**")
+    comp_data = []
+    for j in range(12):
+        valid_bids = [current_data[g][j] for g in group_names if current_data[g][j] > 0]
+        if valid_bids:
+            max_bid = max(valid_bids)
+            min_bid = min(valid_bids)
+            avg_bid = np.mean(valid_bids)
+            std_bid = np.std(valid_bids)
+            comp_data.append({
+                '物品': f'物品{j+1}',
+                '估值': current_values[j],
+                '最高出价': max_bid,
+                '最低出价': min_bid,
+                '平均出价': round(avg_bid, 1),
+                '出价标准差': round(std_bid, 1),
+                '竞争强度': round(max_bid / current_values[j], 3),
+                '出价离散度': round(std_bid / current_values[j], 3) if current_values[j] > 0 else 0,
+            })
+    st.dataframe(pd.DataFrame(comp_data), hide_index=True, use_container_width=True)
+
+    fig4, ax4 = plt.subplots(figsize=(12, 3.5))
+    items = [d['物品'] for d in comp_data]
+    intensities = [d['竞争强度'] for d in comp_data]
+    colors = ['#e74c3c' if x > 1.0 else '#f39c12' if x > 0.95 else '#27ae60' for x in intensities]
+    bars = ax4.bar(items, intensities, color=colors, edgecolor='black', alpha=0.8)
+    ax4.axhline(y=5/6, color='blue', linestyle='--', linewidth=2, label='理论均衡 83.3%')
+    ax4.axhline(y=1.0, color='red', linestyle=':', linewidth=1.5, label='出价=估值')
+    ax4.set_ylabel('中标价 / 估值')
+    ax4.set_title('各物品竞争强度', fontsize=11, fontweight='bold')
+    ax4.legend()
+    ax4.grid(True, alpha=0.3, axis='y')
+    for bar, val in zip(bars, intensities):
+        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                f'{val:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    plt.tight_layout()
+    st.pyplot(fig4)
+
+    # ---- 原有逐物品明细 ----
+    st.markdown("---")
     st.subheader("逐物品拍卖明细")
     df_items = []
     curse_count = 0
@@ -439,132 +534,8 @@ with tab1:
     st.dataframe(pd.DataFrame(df_items), hide_index=True, use_container_width=True)
 
 
-# ========== Tab 2: 出价热力图（全新！）==========
+# ========== Tab 2: 模拟竞拍 ==========
 with tab2:
-    st.header("🔥 出价热力图可视化")
-    st.info("通过热力图直观展示各组出价策略的空间分布和竞争格局")
-
-    data_matrix = np.array([current_data[g] for g in current_data.keys()])
-    group_names = list(current_data.keys())
-    n_groups = len(group_names)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("出价金额热力图")
-        fig1, ax1 = plt.subplots(figsize=(10, 5))
-        im1 = ax1.imshow(data_matrix, cmap='RdYlGn_r', aspect='auto', vmin=0, vmax=500)
-        ax1.set_xticks(range(12))
-        ax1.set_xticklabels([f'物品{i+1}' for i in range(12)], rotation=45, ha='right')
-        ax1.set_yticks(range(n_groups))
-        ax1.set_yticklabels(group_names)
-        ax1.set_title(f'{info_text} — 出价金额', fontsize=12, fontweight='bold')
-        for i in range(n_groups):
-            for j in range(12):
-                if data_matrix[i,j] > 0:
-                    ax1.text(j, i, int(data_matrix[i,j]), ha="center", va="center", 
-                            color="white" if data_matrix[i,j] < 300 else "black", fontsize=8)
-        plt.colorbar(im1, ax=ax1, label='出价金额')
-        plt.tight_layout()
-        st.pyplot(fig1)
-
-    with col2:
-        st.subheader("出价/估值比例热力图")
-        ratio_matrix = np.zeros_like(data_matrix, dtype=float)
-        for i in range(n_groups):
-            for j in range(12):
-                if data_matrix[i,j] > 0:
-                    ratio_matrix[i,j] = data_matrix[i,j] / current_values[j]
-                else:
-                    ratio_matrix[i,j] = np.nan
-
-        fig2, ax2 = plt.subplots(figsize=(10, 5))
-        # 用masked array处理nan
-        ratio_masked = np.ma.masked_invalid(ratio_matrix)
-        im2 = ax2.imshow(ratio_masked, cmap='RdYlBu_r', aspect='auto', vmin=0, vmax=1.2)
-        ax2.set_xticks(range(12))
-        ax2.set_xticklabels([f'物品{i+1}' for i in range(12)], rotation=45, ha='right')
-        ax2.set_yticks(range(n_groups))
-        ax2.set_yticklabels(group_names)
-        ax2.set_title(f'{info_text} — 出价/估值比例', fontsize=12, fontweight='bold')
-        for i in range(n_groups):
-            for j in range(12):
-                if not np.isnan(ratio_matrix[i,j]):
-                    ax2.text(j, i, f'{ratio_matrix[i,j]:.2f}', ha="center", va="center", 
-                            color="white" if ratio_matrix[i,j] < 0.7 else "black", fontsize=7)
-        plt.colorbar(im2, ax=ax2, label='出价/估值')
-        plt.tight_layout()
-        st.pyplot(fig2)
-
-    # 利润热力图
-    st.subheader("利润矩阵热力图（仅中标物品）")
-    profit_matrix = np.full((n_groups, 12), np.nan)
-    for i, g in enumerate(group_names):
-        for j in range(12):
-            if winners[j] == i:
-                profit_matrix[i, j] = current_values[j] - wb[j]
-
-    fig3, ax3 = plt.subplots(figsize=(10, 4))
-    profit_masked = np.ma.masked_invalid(profit_matrix)
-    im3 = ax3.imshow(profit_masked, cmap='RdYlGn', aspect='auto', vmin=-50, vmax=50)
-    ax3.set_xticks(range(12))
-    ax3.set_xticklabels([f'物品{i+1}' for i in range(12)])
-    ax3.set_yticks(range(n_groups))
-    ax3.set_yticklabels(group_names)
-    ax3.set_title('各组中标利润分布（绿色=盈利，红色=亏损）', fontsize=12, fontweight='bold')
-    for i in range(n_groups):
-        for j in range(12):
-            if not np.isnan(profit_matrix[i,j]):
-                ax3.text(j, i, f'{profit_matrix[i,j]:.0f}', ha="center", va="center", 
-                        color="black", fontsize=9, fontweight='bold')
-    plt.colorbar(im3, ax=ax3, label='利润')
-    plt.tight_layout()
-    st.pyplot(fig3)
-
-    # 竞争强度条
-    st.subheader("各物品竞争强度")
-    comp_data = []
-    for j in range(12):
-        valid_bids = [current_data[g][j] for g in group_names if current_data[g][j] > 0]
-        if valid_bids:
-            max_bid = max(valid_bids)
-            min_bid = min(valid_bids)
-            avg_bid = np.mean(valid_bids)
-            std_bid = np.std(valid_bids)
-            comp_data.append({
-                '物品': f'物品{j+1}',
-                '估值': current_values[j],
-                '最高出价': max_bid,
-                '最低出价': min_bid,
-                '平均出价': round(avg_bid, 1),
-                '出价标准差': round(std_bid, 1),
-                '竞争强度': round(max_bid / current_values[j], 3),
-                '出价离散度': round(std_bid / current_values[j], 3) if current_values[j] > 0 else 0,
-            })
-
-    st.dataframe(pd.DataFrame(comp_data), hide_index=True, use_container_width=True)
-
-    # 竞争强度条形图
-    fig4, ax4 = plt.subplots(figsize=(12, 4))
-    items = [d['物品'] for d in comp_data]
-    intensities = [d['竞争强度'] for d in comp_data]
-    colors = ['#e74c3c' if x > 1.0 else '#f39c12' if x > 0.95 else '#27ae60' for x in intensities]
-    bars = ax4.bar(items, intensities, color=colors, edgecolor='black', alpha=0.8)
-    ax4.axhline(y=5/6, color='blue', linestyle='--', linewidth=2, label='理论均衡 83.3%')
-    ax4.axhline(y=1.0, color='red', linestyle=':', linewidth=1.5, label='出价=估值')
-    ax4.set_ylabel('中标价 / 估值')
-    ax4.set_title('各物品竞争强度（中标价/估值）', fontsize=12, fontweight='bold')
-    ax4.legend()
-    ax4.grid(True, alpha=0.3, axis='y')
-    for bar, val in zip(bars, intensities):
-        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
-                f'{val:.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
-    plt.tight_layout()
-    st.pyplot(fig4)
-
-
-# ========== Tab 3: 模拟竞拍 ==========
-with tab3:
     st.header("🏆 模拟竞拍体验")
     st.info("输入你的出价，与历史数据中的小组竞争")
 
@@ -633,7 +604,6 @@ with tab3:
 
         st.dataframe(pd.DataFrame(df_sim), hide_index=True, use_container_width=True)
 
-        # 模拟结果热力图
         st.subheader("你与对手的出价对比热力图")
         sim_matrix = np.array([sim_bids[g] for g in sim_bids.keys()])
         sim_names = list(sim_bids.keys())
@@ -643,19 +613,18 @@ with tab3:
         ax_sim.set_xticklabels([f'{i+1}' for i in range(12)])
         ax_sim.set_yticks(range(len(sim_names)))
         ax_sim.set_yticklabels(sim_names)
-        ax_sim.set_title('模拟竞拍出价热力图', fontsize=12, fontweight='bold')
         for i in range(len(sim_names)):
             for j in range(12):
                 if sim_matrix[i,j] > 0:
-                    ax_sim.text(j, i, int(sim_matrix[i,j]), ha="center", va="center", 
+                    ax_sim.text(j, i, int(sim_matrix[i,j]), ha="center", va="center",
                                color="white" if sim_matrix[i,j] < 300 else "black", fontsize=8)
         plt.colorbar(im_sim, ax=ax_sim, label='出价')
         plt.tight_layout()
         st.pyplot(fig_sim)
 
 
-# ========== Tab 4: AI智能策略 ==========
-with tab4:
+# ========== Tab 3: AI智能策略 ==========
+with tab3:
     st.header("🤖 AI智能策略")
     st.info("基于历史数据的组合优化策略（启发式，非理论均衡）")
 
@@ -694,7 +663,6 @@ with tab4:
 
     st.write(f"**选中物品编号**: {ai_result['selected']}")
 
-    # AI策略热力图
     st.subheader("AI策略可视化")
     ai_matrix = np.array([ai_result['bids']])
     fig_ai, ax_ai = plt.subplots(figsize=(12, 2))
@@ -705,7 +673,7 @@ with tab4:
     ax_ai.set_yticklabels(['AI出价'])
     for j in range(12):
         if ai_result['bids'][j] > 0:
-            ax_ai.text(j, 0, int(ai_result['bids'][j]), ha="center", va="center", 
+            ax_ai.text(j, 0, int(ai_result['bids'][j]), ha="center", va="center",
                       color="white" if ai_result['bids'][j] < 300 else "black", fontsize=9, fontweight='bold')
         else:
             ax_ai.text(j, 0, "放弃", ha="center", va="center", color="gray", fontsize=8)
@@ -713,7 +681,6 @@ with tab4:
     plt.tight_layout()
     st.pyplot(fig_ai)
 
-    # 模拟AI在真实竞争中的表现
     st.subheader("AI在真实竞争中的模拟")
     ai_test = {"AI": ai_result['bids']}
     for g in current_data.keys():
@@ -742,8 +709,8 @@ with tab4:
     """)
 
 
-# ========== Tab 5: 完全理性人基准 ==========
-with tab5:
+# ========== Tab 4: 完全理性人基准 ==========
+with tab4:
     st.header("🧮 完全理性人基准模型")
     st.info("基于纳什均衡理论的理论最优策略")
 
@@ -775,7 +742,6 @@ with tab5:
 
     st.dataframe(pd.DataFrame(df_rational), hide_index=True, use_container_width=True)
 
-    # 理性人策略热力图
     st.subheader("理性人策略可视化")
     rational_matrix = np.array([rational_result['bids']])
     fig_r, ax_r = plt.subplots(figsize=(12, 2))
@@ -786,7 +752,7 @@ with tab5:
     ax_r.set_yticklabels(['理性人出价'])
     for j in range(12):
         if rational_result['bids'][j] > 0:
-            ax_r.text(j, 0, int(rational_result['bids'][j]), ha="center", va="center", 
+            ax_r.text(j, 0, int(rational_result['bids'][j]), ha="center", va="center",
                      color="white" if rational_result['bids'][j] < 300 else "black", fontsize=9, fontweight='bold')
         else:
             ax_r.text(j, 0, "放弃", ha="center", va="center", color="gray", fontsize=8)
@@ -798,10 +764,8 @@ with tab5:
     st.write(f"**总支出**: {rational_result['spent']}")
     st.write(f"**总利润**: {rational_result['profit']}")
 
-    # 与真人对比
     st.subheader("理性人 vs 真人对比")
     real_results, _, _, _ = run_auction(current_data, current_values, budget)
-
     avg_real_profit = np.mean([real_results[g]['profit'] for g in real_results.keys()])
 
     col1, col2, col3 = st.columns(3)
@@ -827,8 +791,8 @@ with tab5:
     """)
 
 
-# ========== Tab 6: 理论分析（增强版）==========
-with tab6:
+# ========== Tab 5: 理论分析（增强版，融入全轮次对比）==========
+with tab5:
     st.header("📈 理论分析")
 
     theory = theoretical_analysis(current_values, n_bidders=6)
@@ -873,23 +837,19 @@ with tab6:
 
     st.dataframe(df_comp, hide_index=True, use_container_width=True)
 
-    # 散点图
     st.subheader("出价偏离度分布")
     fig_scatter, ax_scatter = plt.subplots(figsize=(12, 6))
-
     for g in current_data.keys():
         group_data = df_comp[df_comp['小组'] == g]
         if not group_data.empty:
             ax_scatter.scatter(group_data['物品'], group_data['出价/估值'],
                       label=g, alpha=0.7, s=80, edgecolors='black', linewidth=0.5)
-
     ax_scatter.axhline(y=theory['equilibrium_ratio'], color='green', linestyle='--',
               linewidth=2, label=f'理论均衡 ({theory["equilibrium_ratio"]:.1%})')
     ax_scatter.axhline(y=1.0, color='red', linestyle=':',
               linewidth=1.5, label='出价等于估值 (100%)')
     if info_type == "incomplete":
         ax_scatter.fill_between(range(0, 13), 1.0, 1.6, alpha=0.1, color='red', label='赢家诅咒区（出价>估值）')
-
     ax_scatter.set_xlabel('物品编号')
     ax_scatter.set_ylabel('出价 / 估值')
     ax_scatter.set_title('各组出价偏离理论均衡程度', fontsize=12, fontweight='bold')
@@ -897,19 +857,17 @@ with tab6:
     ax_scatter.legend(loc='upper left', ncol=2)
     ax_scatter.grid(True, alpha=0.3)
     ax_scatter.set_ylim(0, 1.6)
-
     plt.tight_layout()
     st.pyplot(fig_scatter)
 
-    # 新增：全轮次对比分析
+    # 全轮次对比分析
+    st.markdown("---")
     st.subheader("📊 全轮次对比分析")
     st.info("对比所有轮次的出价策略和市场结果")
 
-    # 计算各轮次统计指标
     round_stats = []
     for round_name, (r_data, r_values, r_budget, r_info) in ALL_DATA.items():
-        res, win, wb, grps = run_auction(r_data, r_values, r_budget)
-
+        res, win, wb_r, grps = run_auction(r_data, r_values, r_budget)
         all_ratios = []
         all_profits = []
         for g in grps:
@@ -917,10 +875,8 @@ with tab6:
                 if r_data[g][i] > 0:
                     all_ratios.append(r_data[g][i] / r_values[i])
             all_profits.append(res[g]['profit'])
-
-        valid_wb = [w for w in wb if w > 0]
-        win_ratios = [w / r_values[i] for i, w in enumerate(wb) if w > 0]
-
+        valid_wb = [w for w in wb_r if w > 0]
+        win_ratios = [w / r_values[i] for i, w in enumerate(wb_r) if w > 0]
         round_stats.append({
             '轮次': round_name,
             '平均出价/估值': f"{np.mean(all_ratios):.2%}" if all_ratios else "N/A",
@@ -928,12 +884,11 @@ with tab6:
             '平均中标价/估值': f"{np.mean(win_ratios):.2%}" if win_ratios else "N/A",
             '平均利润': f"{np.mean(all_profits):.1f}",
             '利润标准差': f"{np.std(all_profits):.1f}",
-            '赢家诅咒次数': sum(1 for i, w in enumerate(wb) if w > r_values[i]),
+            '赢家诅咒次数': sum(1 for i, w in enumerate(wb_r) if w > r_values[i]),
         })
 
     st.dataframe(pd.DataFrame(round_stats), hide_index=True, use_container_width=True)
 
-    # 全轮次竞争强度热力图
     st.subheader("全轮次竞争强度热力图")
     comp_matrix_all = []
     round_labels = []
@@ -957,7 +912,7 @@ with tab6:
     ax_comp.set_title('全轮次竞争强度对比（中标价/估值）', fontsize=12, fontweight='bold')
     for i in range(len(round_labels)):
         for j in range(12):
-            ax_comp.text(j, i, f'{comp_matrix_all[i][j]:.2f}', ha="center", va="center", 
+            ax_comp.text(j, i, f'{comp_matrix_all[i][j]:.2f}', ha="center", va="center",
                         color="white" if comp_matrix_all[i][j] > 0.8 else "black", fontsize=8)
     plt.colorbar(im_comp, ax=ax_comp, label='中标价/估值')
     plt.tight_layout()
@@ -992,7 +947,6 @@ for g in TOTAL_PROFITS.keys():
 df_total = pd.DataFrame(df_total)
 st.dataframe(df_total, hide_index=True, use_container_width=True)
 
-# 总收益动态折线图
 fig_total, ax_total = plt.subplots(figsize=(10, 5))
 rounds_total = ['完全信息-R1', '完全信息-R2', '完全信息-R3', '不完全信息-R1', '不完全信息-R2']
 for g in df_total['小组']:
