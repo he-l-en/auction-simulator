@@ -516,6 +516,7 @@ with tab1:
             "获胜者": winner,
             "利润": profit,
         }
+        # 只在不完全信息时显示成交性质和赢家诅咒
         if info_type == "incomplete":
             if is_curse:
                 item_data["成交性质"] = "⚠️ 赢家诅咒（出价>价值）"
@@ -525,6 +526,7 @@ with tab1:
                 item_data["成交性质"] = "流拍"
         df_items.append(item_data)
 
+    # 只在不完全信息时显示赢家诅咒警告
     if info_type == "incomplete":
         if curse_count > 0:
             st.warning(f"本轮出现 {curse_count} 件赢家诅咒拍品（成交价高于价值，中标即亏损）")
@@ -877,6 +879,10 @@ with tab5:
             all_profits.append(res[g]['profit'])
         valid_wb = [w for w in wb_r if w > 0]
         win_ratios = [w / r_values[i] for i, w in enumerate(wb_r) if w > 0]
+        
+        # 只有不完全信息轮次才计算赢家诅咒
+        curse_count = sum(1 for i, w in enumerate(wb_r) if w > r_values[i]) if r_info == "incomplete" else None
+        
         round_stats.append({
             '轮次': round_name,
             '平均出价/价值': f"{np.mean(all_ratios):.2%}" if all_ratios else "N/A",
@@ -884,7 +890,7 @@ with tab5:
             '平均中标价/价值': f"{np.mean(win_ratios):.2%}" if win_ratios else "N/A",
             '平均利润': f"{np.mean(all_profits):.1f}",
             '利润标准差': f"{np.std(all_profits):.1f}",
-            '赢家诅咒次数': sum(1 for i, w in enumerate(wb_r) if w > r_values[i]),
+            '赢家诅咒次数': curse_count if r_info == "incomplete" else "—",
         })
 
     st.dataframe(pd.DataFrame(round_stats), hide_index=True, use_container_width=True)
